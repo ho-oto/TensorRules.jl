@@ -1,10 +1,10 @@
 module TensorRules
 
-using ChainRulesCore
+using Reexport
+@reexport using ChainRulesCore
+
 using MacroTools
 using TensorOperations
-
-import ChainRulesCore: rrule
 
 export @∇
 
