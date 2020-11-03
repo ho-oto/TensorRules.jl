@@ -226,7 +226,7 @@ function _nabla(ex::Expr)
     end
 
     def[:body] = exbody
-    exout = Expr(:block, MacroTools.combinedef(def), exfuncs..., exrules...)
+    exout = Expr(:block, exfuncs..., exrules..., MacroTools.combinedef(def))
     return esc(exout)
 end
 
