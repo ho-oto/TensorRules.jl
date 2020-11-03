@@ -79,7 +79,7 @@ end
         α * C[a, a] * K[1, 2, 3][a, a] -
         (((L[a, b] * P[b, c]) * (M[c, d] * N[d, e]) * Z[e, f]) * D[f, a]) * π
     end
-    @test TensorRules._rhs_to_args(ex)[2] == [
+    @test TensorRules.rhs_to_args(ex)[2] == [
         :(A[1:end, :][1, 2]),
         :(sin(cos(B))),
         :(C * D + E),
