@@ -51,7 +51,37 @@ function _rhs_to_args(ex::Expr)
     return exreplaced, symorig, symgend
 end
 
-function _gen_func(name, args, lhsind, rhs, opt=nothing)
+function make_only_product(ex::Expr, sym::Symbol)
+    hassym(x) =
+        if @capture(x, -(y__) | +(y__) | *(y__))
+            any(hassym.(y))
+        elseif @capture(x, $sym) || @capture(x, $sym[__]) || @capture(x, conj($sym[__]))
+            true
+        else
+            false
+        end
+    MacroTools.postwalk(ex) do x
+        if @capture(x, -(y__))
+            if length(y) == 1
+                x
+            elseif hassym(first(y))
+                first(y)
+            elseif hassym(last(y))
+                :(-$(last(y)))
+            else
+                @error y
+            end
+        elseif @capture(x, +(y__))
+            y = filter(hassym, y)
+            @assert length(y) == 1
+            first(y)
+        else
+            x
+        end
+    end
+end
+
+function _gen_func(name, args, lhsind, rhs, opt = nothing)
     ex = if isnothing(lhsind)
         :($name[] := $rhs)
     else

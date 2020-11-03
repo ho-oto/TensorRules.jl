@@ -94,4 +94,19 @@ end
         :D,
         :π,
     ]
+    @test TensorRules.make_only_product(
+        :(
+            -(
+                2 * (
+                    (
+                        v[V] +
+                        (x[X] - (d[A, B] + (a[A, B] * b[A, B] + c[A, B]) * α + β[A])) +
+                        y +
+                        z
+                    ) - w[W]
+                )
+            ) * conj(k[K])
+        ),
+        :a,
+    ) == :(-(2 * -((a[A, B] * b[A, B]) * α)) * conj(k[K]))
 end
