@@ -185,13 +185,16 @@ function _nabla(ex::Expr)
         lhs, lhsind, rhs = Ref{Symbol}(), Ref{Vector{Any}}(), Ref{Expr}()
         which, opt = Ref{Symbol}(), Ref{Expr}()
 
-        if @capture(x, @tensor _lhs_[_lhsind__] := _rhs_)
+        if @capture(x, @tensor _lhs_[_lhsind__] := _rhs_) ||
+           @capture(x, @tensoropt _lhs_[_lhsind__] := _rhs_)
             lhs[], lhsind[], rhs[] = _lhs, _lhsind, _rhs
             which[] = :assign
-        elseif @capture(x, @tensor _lhs_[_lhsind__] += _rhs_)
+        elseif @capture(x, @tensor _lhs_[_lhsind__] += _rhs_) ||
+               @capture(x, @tensoropt _lhs_[_lhsind__] += _rhs_)
             lhs[], lhsind[], rhs[] = _lhs, _lhsind, _rhs
             which[] = :pluseq
-        elseif @capture(x, @tensor _lhs_[_lhsind__] -= _rhs_)
+        elseif @capture(x, @tensor _lhs_[_lhsind__] -= _rhs_) ||
+               @capture(x, @tensoropt _lhs_[_lhsind__] -= _rhs_)
             lhs[], lhsind[], rhs[] = _lhs, _lhsind, _rhs
             which[] = :subteq
         elseif @capture(x, @tensoropt _opt_ _lhs_[_lhsind__] := _rhs_)
@@ -203,7 +206,9 @@ function _nabla(ex::Expr)
         elseif @capture(x, @tensoropt _opt_ _lhs_[_lhsind__] -= _rhs_)
             lhs[], lhsind[], rhs[] = _lhs, _lhsind, _rhs
             which[], opt[] = :subteq, _opt
-        elseif @capture(x, @tensor _[__] = _ | @tensoropt _ _[__] = _)
+        elseif @capture(x, @tensor _[__] = _) ||
+               @capture(x, @tensoropt _[__] = _) ||
+               @capture(x, @tensoropt _ _[__] = _)
             error("use assignment with `:=` instead of inplace operation with `=` for Zygote")
         else
             return x
