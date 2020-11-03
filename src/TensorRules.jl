@@ -4,6 +4,8 @@ using ChainRulesCore
 using MacroTools
 using TensorOperations
 
+import ChainRulesCore: rrule
+
 export @∇
 
 function ex_to_string(ex)
@@ -14,7 +16,8 @@ function ex_to_string(ex)
 end
 
 function rhs_to_args(ex::Expr)
-    symorig, symgend = Any[], Symbol[]
+    symorig, symgend = Union{Symbol,Expr}[], Symbol[]
+
     exparse(x) =
         if @capture(x, -(rhs__))
             y = exparse.(rhs)
@@ -47,6 +50,7 @@ function rhs_to_args(ex::Expr)
             push!(symgend, new)
             new
         end
+
     exreplaced = exparse(ex)
     return exreplaced, symorig, symgend
 end
@@ -60,7 +64,8 @@ function make_only_product(ex::Expr, sym::Symbol)
         else
             false
         end
-    MacroTools.postwalk(ex) do x
+
+    return MacroTools.postwalk(ex) do x
         if @capture(x, -(y__))
             if length(y) == 1
                 x
@@ -69,7 +74,7 @@ function make_only_product(ex::Expr, sym::Symbol)
             elseif hassym(last(y))
                 :(-$(last(y)))
             else
-                @error y
+                @error "unreachable" y
             end
         elseif @capture(x, +(y__))
             y = filter(hassym, y)
@@ -81,118 +86,147 @@ function make_only_product(ex::Expr, sym::Symbol)
     end
 end
 
-function gen_func(name, args, lhsind, rhs, opt = nothing)
-    ex = if isnothing(lhsind)
-        :($name[] := $rhs)
+function gen_func(
+    funcname::Symbol,
+    args::Vector{Symbol},
+    lhsind::Vector{Any},
+    rhs::Expr,
+    opt::Ref{Expr},
+)
+    ex = if isempty(lhsind)
+        :($funcname[] := $rhs)
     else
-        :($name[$(lhsind...)] := $rhs)
+        :($funcname[$(lhsind...)] := $rhs)
     end
-    ex = if isnothing(opt)
-        :(@inline $name($(args...)) = @tensor $ex)
+
+    ex = if isassigned(opt)
+        :(@inline $funcname($(args...)) = @tensoropt $(opt[]) $ex)
     else
-        :(@inline $name($(args...)) = @tensoropt $opt $ex)
+        :(@inline $funcname($(args...)) = @tensor $ex)
     end
+
     return macroexpand(TensorOperations, ex)
 end
 
-function gen_rule(name, args, lhsind, rhs, opt = nothing)
+function gen_rule(
+    funcname::Symbol,
+    args::Vector{Symbol},
+    lhsind::Vector{Any},
+    rhs::Expr,
+    opt::Ref{Expr},
+)
     @gensym Δlhssym
-    Δlhs = if isnothing(lhsind)
-        :($Δlhssym[])
+    Δlhs = if isempty(lhsind)
+        :($Δlhssym)
     else
         :($Δlhssym[$(lhsind...)])
     end
-    Δargs = []
-    Δexargs = []
+
+    Δargs, Δexargs = Symbol[], Expr[]
     for arg in args
         Δarg = gensym(arg)
         rhs = make_only_product(rhs, arg)
-        Δexarg = MacroTools.prewalk(rhs) do x
-            if @capture(x, conj($arg[Δsind__]))
-                isconj, istensor = true, true
+
+        ind, isconj = Ref{Vector{Any}}(), Ref{Bool}()
+        Δexarg = MacroTools.prewalk(rhs) do x # assume to match only once
+            if @capture(x, conj($arg[_ind__]))
+                ind[], isconj[] = _ind, true
                 :(conj($Δlhs))
-            elseif @capture(x, $arg[Δsind__])
-                isconj, istensor = false, true
+            elseif @capture(x, $arg[_ind__])
+                ind[], isconj[] = _ind, false
                 :(conj($Δlhs))
             elseif @capture(x, $arg)
-                isconj, istensor = false, false
                 :(conj($Δlhs))
             else
                 x
             end
         end
-        Δexarg = if itensor
-            if isnothing(Δsind)
-                error("unreachable")
+        @assert (isassigned(ind) && !isempty(ind[])) || !isassigned(ind)
+        isconj, istensor = (isassigned(isconj) ? isconj[] : false), isassigned(ind)
+
+        Δexarg = if istensor
+            if isassigned(opt)
+                :(@tensoropt $(opt[]) $Δarg[$(ind[]...)] := $Δexarg)
             else
-                if isnothing(opt)
-                    :(@tensor $Δarg[$(Δsind...)] := $Δexarg)
-                else
-                    :(@tensoropt $opt $Δarg[$(Δsind...)] := $Δexarg)
-                end
+                :(@tensor $Δarg[$(ind[]...)] := $Δexarg)
             end
         else
-            if isnothing(opt)
-                :(@tensor $Δarg[] := $Δexarg;
+            if isassigned(opt)
+                :(@tensoropt $(opt[]) $Δarg[] := $Δexarg;
                 $Δarg = first($Δarg))
             else
-                :(@tensoropt $opt $Δarg[] := $Δexarg;
+                :(@tensor $Δarg[] := $Δexarg;
                 $Δarg = first($Δarg))
             end
         end
         Δexarg = isconj ? Δexarg : Expr(:block, Δexarg, :($Δarg = conj($Δarg)))
+
         push!(Δargs, Δarg)
         push!(Δexargs, macroexpand(TensorOperations, Δexarg))
     end
 
-    @gensym valforw fncback
-    backbody = Expr(:block, Δexargs..., :(return (ChainRulesCore.NO_FIELDS, $(Δargs...))))
+    @gensym valforw funcback
+    backbody = Expr(:block, Δexargs..., :(return (NO_FIELDS, $(Δargs...))))
 
     return quote
-        function ChainRulesCore.rrule(::typeof($name), $(args...))
-            $valforw = $(name)($(args...))
-            $(fncback)($Δlhssym) = $backbody
-            return ($valforw, $fncback)
+        function ChainRulesCore.rrule(::typeof($funcname), $(args...))
+            $valforw = $(funcname)($(args...))
+            $(funcback)($Δlhssym) = $backbody
+            return ($valforw, $funcback)
         end
     end
 end
 
 function _nabla(ex::Expr)
     def = splitdef(ex)
-    exfuncs = []
-    exrules = []
+    exfuncs, exrules = Expr[], Expr[]
+
     exbody = MacroTools.postwalk(def[:body]) do x
-        if @capture(x, @tensor lhs_[lhsind__] := rhs_)
-            which, opt = :assign, nothing
-        elseif @capture(x, @tensor lhs_[lhsind__] += rhs_)
-            which, opt = :pluseq, nothing
-        elseif @capture(x, @tensor lhs_[lhsind__] -= rhs_)
-            which, opt = :subteq, nothing
-        elseif @capture(x, @tensoropt opt_ lhs_[lhsind__] := rhs_)
-            which = :assign
-        elseif @capture(x, @tensoropt opt_ lhs_[lhsind__] += rhs_)
-            which = :pluseq
-        elseif @capture(x, @tensoropt opt_ lhs_[lhsind__] -= rhs_)
-            which = :subteq
-        elseif @capture(x, @tensor lhs_[__] = rhs_ | @tensoropt opt_ lhs_[__] = rhs_)
+        lhs, lhsind, rhs = Ref{Symbol}(), Ref{Vector{Any}}(), Ref{Expr}()
+        which, opt = Ref{Symbol}(), Ref{Expr}()
+
+        if @capture(x, @tensor _lhs_[_lhsind__] := _rhs_)
+            lhs[], lhsind[], rhs[] = _lhs, _lhsind, _rhs
+            which[] = :assign
+        elseif @capture(x, @tensor _lhs_[_lhsind__] += _rhs_)
+            lhs[], lhsind[], rhs[] = _lhs, _lhsind, _rhs
+            which[] = :pluseq
+        elseif @capture(x, @tensor _lhs_[_lhsind__] -= _rhs_)
+            lhs[], lhsind[], rhs[] = _lhs, _lhsind, _rhs
+            which[] = :subteq
+        elseif @capture(x, @tensoropt _opt_ _lhs_[_lhsind__] := _rhs_)
+            lhs[], lhsind[], rhs[] = _lhs, _lhsind, _rhs
+            which[], opt[] = :assign, _opt
+        elseif @capture(x, @tensoropt _opt_ _lhs_[_lhsind__] += _rhs_)
+            lhs[], lhsind[], rhs[] = _lhs, _lhsind, _rhs
+            which[], opt[] = :pluseq, _opt
+        elseif @capture(x, @tensoropt _opt_ _lhs_[_lhsind__] -= _rhs_)
+            lhs[], lhsind[], rhs[] = _lhs, _lhsind, _rhs
+            which[], opt[] = :subteq, _opt
+        elseif @capture(x, @tensor _[__] = _ | @tensoropt _ _[__] = _)
             error("use assignment with `:=` instead of inplace operation with `=` for Zygote")
         else
             return x
         end
+
+        lhs, lhsind, rhs, which = lhs[], lhsind[], rhs[], which[]
+
         rhsreplace, argsorig, argsdummy = rhs_to_args(rhs)
-        name = gensym(lhs)
-        push!(exfuncs, gen_func(name, argsdummy, lhsind, rhsreplace, opt))
-        push!(exrules, gen_rule(name, argsdummy, lhsind, rhsreplace, opt))
+        funcname = gensym(lhs)
+        push!(exfuncs, gen_func(funcname, argsdummy, lhsind, rhsreplace, opt))
+        push!(exrules, gen_rule(funcname, argsdummy, lhsind, rhsreplace, opt))
+
         if which == :assign
-            return :($lhs = $name($(argsorig...)))
+            return :($lhs = $funcname($(argsorig...)))
         elseif which == :pluseq # use x += y instead of x .+= y for Zygote
-            return :($lhs += $name($(argsorig...)))
+            return :($lhs += $funcname($(argsorig...)))
         elseif which == :subteq # use x -= y instead of x .-= y for Zygote
-            return :($lhs -= $name($(argsorig...)))
+            return :($lhs -= $funcname($(argsorig...)))
         end
     end
+
     def[:body] = exbody
-    exout = Expr(:block, combinedef(def), exfuncs..., exrules...)
+    exout = Expr(:block, MacroTools.combinedef(def), exfuncs..., exrules...)
     return esc(exout)
 end
 
