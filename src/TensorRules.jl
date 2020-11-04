@@ -67,6 +67,7 @@ function make_only_product(ex::Expr, sym::Symbol)
 
     return MacroTools.postwalk(ex) do x
         if @capture(x, -(y__))
+            @assert 1 ≤ length(y) ≤ 2
             if length(y) == 1
                 x
             elseif hassym(first(y))
@@ -74,12 +75,13 @@ function make_only_product(ex::Expr, sym::Symbol)
             elseif hassym(last(y))
                 :(-$(last(y)))
             else
-                @error "unreachable" y
+                x
             end
         elseif @capture(x, +(y__))
+            @assert 1 ≤ length(y)
             y = filter(hassym, y)
-            @assert length(y) == 1
-            first(y)
+            @assert length(y) ≤ 1
+            length(y) == 1 ? first(y) : x
         else
             x
         end
