@@ -2,6 +2,7 @@ module TensorRules
 
 using Reexport
 @reexport using ChainRulesCore
+@reexport using LinearAlgebra
 
 using MacroTools
 using TensorOperations
@@ -16,6 +17,7 @@ function ex_to_string(ex)
 end
 
 function rhs_to_args(ex::Expr)
+    indsall = Union{Symbol,Expr}[]
     symorig, symgend = Union{Symbol,Expr}[], Symbol[]
 
     exparse(x) =
@@ -35,12 +37,14 @@ function rhs_to_args(ex::Expr)
             new = gensym(ex_to_string(sym))
             push!(symorig, sym)
             push!(symgend, new)
+            append!(indsall, ind)
             :(conj($new[$(ind...)]))
         elseif @capture(x, sym_[ind__])
             all(x -> !isa(x, Integer), ind) || error("NCON style is unsupported")
             new = gensym(ex_to_string(sym))
             push!(symorig, sym)
             push!(symgend, new)
+            append!(indsall, ind)
             :($new[$(ind...)])
         elseif x isa Number
             x
@@ -52,7 +56,7 @@ function rhs_to_args(ex::Expr)
         end
 
     exreplaced = exparse(ex)
-    return exreplaced, symorig, symgend
+    return exreplaced, symorig, symgend, indsall
 end
 
 function make_only_product(ex::Expr, sym::Symbol)
@@ -115,8 +119,11 @@ function gen_rule(
     args::Vector{Symbol},
     lhsind::Vector{Any},
     rhs::Expr,
+    indsall::Vector{Union{Symbol,Expr}},
     opt::Ref{Expr},
 )
+    indsall = [lhsind; indsall]
+
     @gensym Δlhssym
     Δlhs = if isempty(lhsind)
         :($Δlhssym)
@@ -127,10 +134,10 @@ function gen_rule(
     Δargs, Δexargs = Symbol[], Expr[]
     for arg in args
         Δarg = gensym(arg)
-        rhs = make_only_product(rhs, arg)
+        rhsarg = make_only_product(rhs, arg)
 
         ind, isconj = Ref{Vector{Any}}(), Ref{Bool}()
-        Δexarg = MacroTools.prewalk(rhs) do x # assume to match only once
+        Δexarg = MacroTools.prewalk(rhsarg) do x # assume to match only once
             if @capture(x, conj($arg[_ind__]))
                 ind[], isconj[] = _ind, true
                 :(conj($Δlhs))
@@ -146,11 +153,37 @@ function gen_rule(
         @assert (isassigned(ind) && !isempty(ind[])) || !isassigned(ind)
         isconj, istensor = (isassigned(isconj) ? isconj[] : false), isassigned(ind)
 
+        shouldtr = istensor ? ind[] ≠ unique(ind[]) : false
+        indtr = Union{Symbol,Expr}[]
+
+        if shouldtr
+            δs = Expr[]
+            for (k, i) in enumerate(ind[])
+                if i ∉ indtr
+                    push!(indtr, i)
+                    continue
+                end
+
+                j = :($i')
+                while j ∈ indsall
+                    j = :($j')
+                end
+                push!(indtr, j)
+                push!(
+                    δs,
+                    :($Array{eltype($arg)}(I, size($arg, $k), size($arg, $k))[$i, $j]),
+                )
+            end
+            Δexarg = :(*($Δexarg, $(δs...)))
+        elseif istensor
+            append!(indtr, ind[])
+        end
+
         Δexarg = if istensor
             if isassigned(opt)
-                :(@tensoropt $(opt[]) $Δarg[$(ind[]...)] := $Δexarg)
+                :(@tensoropt $(opt[]) $Δarg[$(indtr...)] := $Δexarg)
             else
-                :(@tensor $Δarg[$(ind[]...)] := $Δexarg)
+                :(@tensor $Δarg[$(indtr...)] := $Δexarg)
             end
         else
             if isassigned(opt)
@@ -218,10 +251,10 @@ function _nabla(ex::Expr)
 
         lhs, lhsind, rhs, which = lhs[], lhsind[], rhs[], which[]
 
-        rhsreplace, argsorig, argsdummy = rhs_to_args(rhs)
+        rhsreplace, argsorig, argsdummy, indsall = rhs_to_args(rhs)
         funcname = gensym(lhs)
         push!(exfuncs, gen_func(funcname, argsdummy, lhsind, rhsreplace, opt))
-        push!(exrules, gen_rule(funcname, argsdummy, lhsind, rhsreplace, opt))
+        push!(exrules, gen_rule(funcname, argsdummy, lhsind, rhsreplace, indsall, opt))
 
         if which == :assign
             return :($lhs = $funcname($(argsorig...)))
