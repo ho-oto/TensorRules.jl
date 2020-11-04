@@ -203,6 +203,11 @@ function gen_rule(
     @gensym valforw funcback
     backbody = Expr(
         :block,
+        :(
+            if $Δlhssym isa AbstractZero
+                return (NO_FIELDS, $(fill(Zero(), length(Δargs))...))
+            end
+        ),
         :($Δlhssym = Array($Δlhssym)),
         Δexargs...,
         :(return (NO_FIELDS, $(Δargs...))),
