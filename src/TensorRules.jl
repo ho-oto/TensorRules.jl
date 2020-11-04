@@ -201,7 +201,12 @@ function gen_rule(
     end
 
     @gensym valforw funcback
-    backbody = Expr(:block, Δexargs..., :(return (NO_FIELDS, $(Δargs...))))
+    backbody = Expr(
+        :block,
+        :($Δlhssym = Array($Δlhssym)),
+        Δexargs...,
+        :(return (NO_FIELDS, $(Δargs...))),
+    )
 
     return quote
         function ChainRulesCore.rrule(::typeof($funcname), $(args...))
