@@ -54,7 +54,7 @@ function rrule(::typeof(_foo_1), x1, x2, x3, x4, x5)
         Δx4 = conj(Δx4)
         @tensoropt !C Δx5[A, B] := x4 * conj(Δf[A, B])
         Δx5 = conj(Δx5)
-        return (NO_FIELDS, Δx1, Δx2, Δx3, Δx4)
+        return (NO_FIELDS, Δx1, Δx2, Δx3, Δx4, Δx5)
     end
     return f, _foo_1_pullback
 end
@@ -64,11 +64,11 @@ end
 function rrule(::typeof(_foo_2), x1, x2)
     f = _foo_2(x1, x2)
     function _foo_2_pullback(Δf)
-        @tensor Δx1[A, C] := conj(f[A, B]) * x2[C, B]
+        @tensor Δx1[A, C] := conj(Δf[A, B]) * x2[C, B]
         Δx1 = conj(Δx1)
-        @tensor Δx2[C, B] := x1[A, C] * conj(f[A, B])
+        @tensor Δx2[C, B] := x1[A, C] * conj(Δf[A, B])
         Δx2 = conj(Δx2)
-        return (NO_FIELDS, x̄1, x̄2)
+        return (NO_FIELDS, Δx1, Δx2)
     end
     return f, _foo_2_pullback
 end
