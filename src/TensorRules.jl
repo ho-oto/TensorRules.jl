@@ -126,7 +126,7 @@ function gen_rule(
 
     @gensym Δlhssym
     Δlhs = if isempty(lhsind)
-        :($Δlhssym)
+        :(first($Δlhssym))
     else
         :($Δlhssym[$(lhsind...)])
     end
