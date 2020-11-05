@@ -161,18 +161,17 @@ function gen_rule(
             for (k, i) in enumerate(ind[])
                 if i ∉ indtr
                     push!(indtr, i)
-                    continue
+                else
+                    j = :($i')
+                    while j ∈ [indsall; indtr]
+                        j = :($j')
+                    end
+                    push!(indtr, j)
+                    push!(
+                        δs,
+                        :($Array{eltype($arg)}(I, size($arg, $k), size($arg, $k))[$i, $j]),
+                    )
                 end
-
-                j = :($i')
-                while j ∈ indsall
-                    j = :($j')
-                end
-                push!(indtr, j)
-                push!(
-                    δs,
-                    :($Array{eltype($arg)}(I, size($arg, $k), size($arg, $k))[$i, $j]),
-                )
             end
             Δexarg = :(*($Δexarg, $(δs...)))
         elseif istensor
