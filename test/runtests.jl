@@ -1,5 +1,6 @@
 using ChainRulesCore
 using ChainRulesTestUtils
+using FiniteDifferences
 using LinearAlgebra
 using MacroTools
 using Random
@@ -8,9 +9,8 @@ using TensorRules
 using Test
 using Zygote
 
-rng = MersenneTwister(1234321)
-
 @testset "Theory" begin
+    rng = MersenneTwister(1234321)
     test1(a, b, c, d) = @tensor _[A, C] := a * conj(b[A, B]) * c[B, C] + d[A, C]
     function ChainRulesCore.rrule(::typeof(test1), a, b, c, d)
         f = test1(a, b, c, d)
@@ -128,9 +128,52 @@ end
     @test TensorRules.make_only_product(ex, :j) == :j
 end
 
+function _tensor_rrule_test(ex::Expr)
+    def = splitdef(ex)
+    @capture(def[:body], @tensor lhs_[lhsind__] := rhs_)
+    opt = Ref{Expr}()
+    _, _, _, indsall = TensorRules.rhs_to_args(rhs)
+    exrrule =
+        TensorRules.gen_rule(def[:name], Symbol.(def[:args]), lhsind, rhs, indsall, opt)
+    exout = Expr(:block, MacroTools.combinedef(def), exrrule)
+    return esc(exout)
+end
+function _tensoropt_rrule_test(ex::Expr)
+    def = splitdef(ex)
+    @capture(def[:body], @tensoropt opt_ lhs_[lhsind__] := rhs_)
+    opt = Ref(opt)
+    _, _, _, indsall = TensorRules.rhs_to_args(rhs)
+    exrrule =
+        TensorRules.gen_rule(def[:name], Symbol.(def[:args]), lhsind, rhs, indsall, opt)
+    exout = Expr(:block, MacroTools.combinedef(def), exrrule)
+    return esc(exout)
+end
+macro tensor_rrule_test(ex)
+    _tensor_rrule_test(ex)
+end
+macro tensoropt_rrule_test(ex)
+    _tensoropt_rrule_test(ex)
+end
+
 @testset "gen_rule" begin
-    funcname = :test
-    T = ComplexF64
+
+    @tensor_rrule_test t_einsum(b, c, d) =
+        @tensor a[B, A] := conj(b[A, C]) * c[C, D] * d[B, D]
+    @tensoropt_rrule_test t_opt1(b, c, d) =
+        @tensoropt (A => 1, C => χ) a[B, A] := b[A, C] * c[C, D] * d[B, D]
+    @tensoropt_rrule_test t_opt2(b, c, d) =
+        @tensoropt !(A, C) a[B, A] := b[A, C] * c[C, D] * d[B, D]
+    @tensoropt_rrule_test t_opt3(b, c, d) =
+        @tensoropt (A, C) a[B, A] := b[A, C] * c[C, D] * d[B, D]
+    @tensor_rrule_test t_rsca(α, b, c) = @tensor a[B, A] := α * conj(b[A, C]) * c[C, B]
+    @tensor_rrule_test t_add(α, b, c, β, bb, cc, ccc) = @tensor a[B, A] :=
+        -α * conj(b[A, C]) * c[C, B] + β * bb[A, C] * (-cc[C, B] + 2 * ccc[C, B])
+    @tensor_rrule_test t_tr1(b, c) = @tensor a[C] := b[A, B, B', B', B] * c[A, A', A', C]
+    @tensor_rrule_test t_tr2(b, c) = @tensor a[C] := b[A, B, BB, BB, B] * c[A, AA, AA, C]
+    @tensor_rrule_test t_lsca(b, c, d) = @tensor a[] := b[A, B] * c[B, C] * d[C, A]
+
+    rng = MersenneTwister(1234321)
+
     for T in (ComplexF64, Float64)
         a = randn(rng, T, 4, 3)
         b, Δb = randn(rng, T, 3, 5), randn(rng, T, 3, 5)
@@ -142,80 +185,14 @@ end
         α, Δα = randn(rng, T), randn(rng, T)
         β, Δβ = randn(rng, T), randn(rng, T)
 
-        # einsum & conj
-        ex = :(@tensor a[B, A] := conj(b[A, C]) * c[C, D] * d[B, D])
-        @capture(ex, @tensor lhs_[lhsind__] := rhs_)
-        rhsreplace, argsorig, argsdummy, indsall = TensorRules.rhs_to_args(rhs)
 
-        eval(TensorRules.gen_func(funcname, argsdummy, lhsind, rhsreplace, Ref{Expr}()))
-        eval(TensorRules.gen_rule(
-            funcname,
-            argsdummy,
-            lhsind,
-            rhsreplace,
-            indsall,
-            Ref{Expr}(),
-        ))
-
-        rrule_test(test, a, (b, Δb), (c, Δc), (d, Δd))
-
-        # opt
-        for ex in [
-            :(@tensoropt (A => 1, C => χ) a[B, A] := b[A, C] * c[C, D] * d[B, D]),
-            :(@tensoropt !(A, C) a[B, A] := b[A, C] * c[C, D] * d[B, D]),
-            :(@tensoropt (A, C) a[B, A] := b[A, C] * c[C, D] * d[B, D]),
-        ]
-            @capture(ex, @tensoropt opt_ lhs_[lhsind__] := rhs_)
-            rhsreplace, argsorig, argsdummy, indsall = TensorRules.rhs_to_args(rhs)
-
-            eval(TensorRules.gen_func(funcname, argsdummy, lhsind, rhsreplace, Ref(opt)))
-            eval(TensorRules.gen_rule(
-                funcname,
-                argsdummy,
-                lhsind,
-                rhsreplace,
-                indsall,
-                Ref(opt),
-            ))
-
-            rrule_test(test, a, (b, Δb), (c, Δc), (d, Δd))
-        end
-
-        # scalar in rhs
-        ex = :(@tensor a[B, A] := α * conj(b[A, C]) * c[C, B])
-        @capture(ex, @tensor lhs_[lhsind__] := rhs_)
-        rhsreplace, argsorig, argsdummy, indsall = TensorRules.rhs_to_args(rhs)
-
-        eval(TensorRules.gen_func(funcname, argsdummy, lhsind, rhsreplace, Ref{Expr}()))
-        eval(TensorRules.gen_rule(
-            funcname,
-            argsdummy,
-            lhsind,
-            rhsreplace,
-            indsall,
-            Ref{Expr}(),
-        ))
-
-        rrule_test(test, a, (α, Δα), (b, Δb), (c, Δc))
-
-        # add
-        ex = :(@tensor a[B, A] :=
-            -α * conj(b[A, C]) * c[C, B] + β * bb[A, C] * (-cc[C, B] + 2 * ccc[C, B]))
-        @capture(ex, @tensor lhs_[lhsind__] := rhs_)
-        rhsreplace, argsorig, argsdummy, indsall = TensorRules.rhs_to_args(rhs)
-
-        eval(TensorRules.gen_func(funcname, argsdummy, lhsind, rhsreplace, Ref{Expr}()))
-        eval(TensorRules.gen_rule(
-            funcname,
-            argsdummy,
-            lhsind,
-            rhsreplace,
-            indsall,
-            Ref{Expr}(),
-        ))
-
+        rrule_test(t_einsum, a, (b, Δb), (c, Δc), (d, Δd))
+        rrule_test(t_opt1, a, (b, Δb), (c, Δc), (d, Δd))
+        rrule_test(t_opt2, a, (b, Δb), (c, Δc), (d, Δd))
+        rrule_test(t_opt3, a, (b, Δb), (c, Δc), (d, Δd))
+        rrule_test(t_rsca, a, (α, Δα), (b, Δb), (c, Δc))
         rrule_test(
-            test,
+            t_add,
             a,
             (α, Δα),
             (b, Δb),
@@ -226,52 +203,66 @@ end
             (c3, Δc3),
         )
 
-        # trace
         a = randn(rng, T, 2)
         b, Δb = randn(rng, T, 3, 2, 3, 3, 2), randn(rng, T, 3, 2, 3, 3, 2)
         c, Δc = randn(rng, T, 3, 3, 3, 2), randn(rng, T, 3, 3, 3, 2)
 
-        for ex in [
-            :(@tensor a[C] := b[A, B, B', B', B] * c[A, A', A', C]),
-            :(@tensor a[C] := b[A, B, BB, BB, B] * c[A, AA, AA, C]),
-        ]
-            @capture(ex, @tensor lhs_[lhsind__] := rhs_)
-            rhsreplace, argsorig, argsdummy, indsall = TensorRules.rhs_to_args(rhs)
+        rrule_test(t_tr1, a, (b, Δb), (c, Δc))
+        rrule_test(t_tr2, a, (b, Δb), (c, Δc))
 
-            eval(TensorRules.gen_func(funcname, argsdummy, lhsind, rhsreplace, Ref{Expr}()))
-            eval(TensorRules.gen_rule(
-                funcname,
-                argsdummy,
-                lhsind,
-                rhsreplace,
-                indsall,
-                Ref{Expr}(),
-            ))
-
-            rrule_test(test, a, (b, Δb), (c, Δc))
-        end
-
-        # lhs is scalar
         a = randn(rng, T, 1)
         b, Δb = randn(rng, T, 3, 2), randn(rng, T, 3, 2)
         c, Δc = randn(rng, T, 2, 4), randn(rng, T, 2, 4)
         d, Δd = randn(rng, T, 4, 3), randn(rng, T, 4, 3)
 
-        ex = :(@tensor a[] := b[A, B] * c[B, C] * d[C, A])
+        rrule_test(t_lsca, a, (b, Δb), (c, Δc), (d, Δd))
+    end
+end
 
-        @capture(ex, @tensor lhs_[lhsind__] := rhs_)
-        rhsreplace, argsorig, argsdummy, indsall = TensorRules.rhs_to_args(rhs)
+function foo_(a, b, c, d, e, f)
+    @tensoropt !C x[A, B] := conj(a[A, C]) * (-sin.(b)[C, D] * c.d[D, B] - c.d[C, B])
+    @tensor x[A, B] -= d * conj(e[1])[A, B'', B', B', B'', B]
+    x = x + f
+    @tensor x[A, B] += (@tensor _[A, C] := a[A, B] * a[B, C])[A, C] * (a*a)[C, B]
+    return x
+end
 
-        eval(TensorRules.gen_func(funcname, argsdummy, lhsind, rhsreplace, Ref{Expr}()))
-        eval(TensorRules.gen_rule(
-            funcname,
-            argsdummy,
-            lhsind,
-            rhsreplace,
-            indsall,
-            Ref{Expr}(),
-        ))
+@∇ function foo(a, b, c, d, e, f)
+    @tensoropt !C x[A, B] := conj(a[A, C]) * (-sin.(b)[C, D] * c.d[D, B] - c.d[C, B])
+    @tensor x[A, B] -= d * conj(e[1])[A, B'', B', B', B'', B]
+    x = x + f
+    @tensor x[A, B] += (@tensor _[A, C] := a[A, B] * a[B, C])[A, C] * (a*a)[C, B]
+    return x
+end
 
-        rrule_test(test, a, (b, Δb), (c, Δc), (d, Δd))
+@testset "Zygote" begin
+    rng = MersenneTwister(1234321)
+    T = ComplexF64
+    a = randn(rng, T, 3, 3)
+    b = randn(rng, T, 3, 3)
+    c = (d = randn(rng, T, 3, 3),)
+    d = randn(rng, T)
+    e = [randn(rng, T, 3, 2, 1, 1, 2, 3) for i = 1:2]
+    f = randn(rng, T, 3, 3)
+
+    @test foo(a, b, c, d, e, f) ≈ foo_(a, b, c, d, e, f)
+
+    for F in [angle ∘ first, angle ∘ sum, real ∘ sum]
+        ad = gradient(
+            (a, b, c, d, e, f) -> F(foo(a, b, c, d, e, f)),
+            (a, b, c, d, e, f)...,
+        )
+        fd = grad(
+            central_fdm(5, 1),
+            (a, b, c, d, e, f) -> F(foo(a, b, c, d, e, f)),
+            (a, b, c, d, e, f)...,
+        )
+
+        @test ad[1] ≈ fd[1] atol = cbrt(eps())
+        @test ad[2] ≈ fd[2] atol = cbrt(eps())
+        @test ad[3].d ≈ fd[3].d atol = cbrt(eps())
+        @test ad[4] ≈ fd[4] atol = cbrt(eps())
+        @test ad[5][1] ≈ fd[5][1] atol = cbrt(eps())
+        @test ad[6] ≈ fd[6] atol = cbrt(eps())
     end
 end
