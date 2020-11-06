@@ -76,8 +76,8 @@ end
 
 ## unsupported features
 
-- We use `@capture` macro defined in [`MacroTools.jl`](https://github.com/FluxML/MacroTools.jl)
-to parse `Expr`. Because of the limitation of this macro,
+- `@∇` uses `@capture` macro defined in [`MacroTools.jl`](https://github.com/FluxML/MacroTools.jl)
+to parse `Expr`. Because of the limitation of `@capture` macro,
 index notations based on `:typed_vcat` and `:typed_hcat` (`A[a; b], A[a b]`)
 are unsupported. Please use `A[a, b]` style.
 - Designations of contraction order based on `ord=(...)` or NCON style are unsupported.
@@ -88,5 +88,6 @@ in the expression. Please use `:=`, `+=` and `-=` instead.
 ## TODO
 
 - [ ] support `frule`
-- [ ] support `@tensor` block
-- [ ] support higher order differentiation
+- [ ] support `@tensor` block (`@tensor begin ... end`)
+- [ ] support higher order differentiation (by applying `@∇` to `rrule` and `frule` recursively)
+- [ ] use `@thunk` ?
