@@ -221,9 +221,9 @@ function gen_rule(
     end
 end
 
-function _nabla(ex::Expr)
+function _nabla(ex::Expr; mod)
     def = splitdef(ex)
-    exfuncs, exrules = Expr[], Expr[]
+    symfuncs, exfuncs, exrules = Symbol[], Expr[], Expr[]
 
     def[:body] = MacroTools.postwalk(def[:body]) do x
         lhs, lhsind, rhs = Ref{Symbol}(), Ref{Vector{Any}}(), Ref{Expr}()
@@ -261,26 +261,27 @@ function _nabla(ex::Expr)
         lhs, lhsind, rhs, which = lhs[], lhsind[], rhs[], which[]
 
         rhsreplace, argsorig, argsdummy, indsall = rhs_to_args(rhs)
-        funcname = gensym(lhs)
-        push!(exfuncs, gen_func(funcname, argsdummy, lhsind, rhsreplace, opt))
-        push!(exrules, gen_rule(funcname, argsdummy, lhsind, rhsreplace, indsall, opt))
+        symfunc = gensym(lhs)
+
+        push!(symfuncs, symfunc)
+
+        @eval mod $(gen_func(symfunc, argsdummy, lhsind, rhsreplace, opt))
+        @eval mod $(gen_rule(symfunc, argsdummy, lhsind, rhsreplace, indsall, opt))
 
         if which == :assign
-            return :($lhs = $funcname($(argsorig...)))
+            return :($lhs = $(eval(mod, symfunc))($(argsorig...)))
         elseif which == :pluseq # use x += y instead of x .+= y for Zygote
-            return :($lhs += $funcname($(argsorig...)))
+            return :($lhs += $(eval(mod, symfunc))($(argsorig...)))
         elseif which == :subteq # use x -= y instead of x .-= y for Zygote
-            return :($lhs -= $funcname($(argsorig...)))
+            return :($lhs -= $(eval(mod, symfunc))($(argsorig...)))
         end
     end
 
-    exout =
-        Expr(:block, Expr(:toplevel, exfuncs..., exrules...), MacroTools.combinedef(def))
-    return esc(exout)
+    return esc(MacroTools.combinedef(def)), symfuncs
 end
 
 macro ∇(ex)
-    _nabla(ex)
+    _nabla(ex; mod = @__MODULE__)[1]
 end
 
 end
