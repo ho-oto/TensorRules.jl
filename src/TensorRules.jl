@@ -11,8 +11,6 @@ export @tensor, @tensoropt
 
 export @∇, @∇genedfunc
 
-const showexpr = Ref(false)
-
 function rhs_to_args(ex::Expr)
     indsall = Union{Symbol,Expr}[]
     symorig, symgend = Union{Symbol,Expr}[], Symbol[]
@@ -133,13 +131,13 @@ function gen_rule(
         Δarg = gensym()
         rhsarg = make_only_product(rhs, arg)
 
-        ind, isconj = Ref{Vector{Any}}(), Ref{Bool}()
+        ind, isconj = Ref{Vector{Any}}(), Ref{Bool}(false)
         Δexarg = MacroTools.prewalk(rhsarg) do x # assume to match only once
             if @capture(x, conj($arg[_ind__]))
                 ind[], isconj[] = _ind, true
                 :(conj($Δlhs))
             elseif @capture(x, $arg[_ind__])
-                ind[], isconj[] = _ind, false
+                ind[] = _ind
                 :(conj($Δlhs))
             elseif @capture(x, $arg)
                 :(conj($Δlhs))
@@ -149,8 +147,6 @@ function gen_rule(
         end
         @assert (isassigned(ind) && !isempty(ind[])) || !isassigned(ind)
         istensor = isassigned(ind)
-        showexpr[] && @show isconj
-        isconj = isassigned(isconj) ? isconj[] : false
 
         shouldtr = istensor ? ind[] ≠ unique(ind[]) : false
         indtr = Union{Symbol,Expr}[]
@@ -192,14 +188,12 @@ function gen_rule(
                 $Δarg = first($Δarg))
             end
         end
-        showexpr[] && @show isconj
-        Δexarg = isconj ? Δexarg : Expr(:block, Δexarg, :($Δarg = conj($Δarg)))
+        Δexarg = isconj[] ? Δexarg : Expr(:block, Δexarg, :($Δarg = conj($Δarg)))
 
         push!(Δargs, Δarg)
         push!(Δexargs, Δexarg)
     end
 
-    showexpr[] && @show prettify.(rmlines.(Δexargs))
     Δexargs = map(x -> macroexpand(TensorOperations, x), Δexargs)
 
     @gensym valforw funcback
