@@ -149,7 +149,8 @@ function gen_rule(
         end
         @assert (isassigned(ind) && !isempty(ind[])) || !isassigned(ind)
         istensor = isassigned(ind)
-        isconj = (isassigned(isconj) ? isconj[] : false)
+        showexpr[] && @show isconj
+        isconj = isassigned(isconj) ? isconj[] : false
 
         shouldtr = istensor ? ind[] ≠ unique(ind[]) : false
         indtr = Union{Symbol,Expr}[]
@@ -191,6 +192,7 @@ function gen_rule(
                 $Δarg = first($Δarg))
             end
         end
+        showexpr[] && @show isconj
         Δexarg = isconj ? Δexarg : Expr(:block, Δexarg, :($Δarg = conj($Δarg)))
 
         push!(Δargs, Δarg)
