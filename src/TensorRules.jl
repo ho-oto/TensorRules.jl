@@ -1,11 +1,13 @@
 module TensorRules
 
-using Reexport
-@reexport using ChainRulesCore
-@reexport using LinearAlgebra
-@reexport using TensorOperations
-
+using ChainRulesCore
+using LinearAlgebra
 using MacroTools
+using TensorOperations
+
+export rrule, frule
+export I
+export @tensor, @tensoropt
 
 export @∇, @∇genedfunc
 
