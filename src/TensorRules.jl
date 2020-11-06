@@ -5,11 +5,13 @@ using LinearAlgebra
 using MacroTools
 using TensorOperations
 
-export rrule, frule
+export rrule, frule, NO_FIELDS, AbstractZero, Zero
 export I
 export @tensor, @tensoropt
 
 export @∇, @∇genedfunc
+
+const showexpr = Ref(false)
 
 function rhs_to_args(ex::Expr)
     indsall = Union{Symbol,Expr}[]
@@ -146,7 +148,8 @@ function gen_rule(
             end
         end
         @assert (isassigned(ind) && !isempty(ind[])) || !isassigned(ind)
-        isconj, istensor = (isassigned(isconj) ? isconj[] : false), isassigned(ind)
+        istensor = isassigned(ind)
+        isconj = (isassigned(isconj) ? isconj[] : false)
 
         shouldtr = istensor ? ind[] ≠ unique(ind[]) : false
         indtr = Union{Symbol,Expr}[]
@@ -191,8 +194,11 @@ function gen_rule(
         Δexarg = isconj ? Δexarg : Expr(:block, Δexarg, :($Δarg = conj($Δarg)))
 
         push!(Δargs, Δarg)
-        push!(Δexargs, macroexpand(TensorOperations, Δexarg))
+        push!(Δexargs, Δexarg)
     end
+
+    showexpr[] && @show prettify.(rmlines.(Δexargs))
+    Δexargs = map(x -> macroexpand(TensorOperations, x), Δexargs)
 
     @gensym valforw funcback
     backbody = Expr(
