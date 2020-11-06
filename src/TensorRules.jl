@@ -3,11 +3,11 @@ module TensorRules
 using Reexport
 @reexport using ChainRulesCore
 @reexport using LinearAlgebra
+@reexport using TensorOperations
 
 using MacroTools
-using TensorOperations
 
-export @∇
+export @∇, @∇genedfunc
 
 function ex_to_string(ex)
     ex isa Symbol && return string(ex)
@@ -269,11 +269,11 @@ function _nabla(ex::Expr; mod)
         @eval mod $(gen_rule(symfunc, argsdummy, lhsind, rhsreplace, indsall, opt))
 
         if which == :assign
-            return :($lhs = $(eval(mod, symfunc))($(argsorig...)))
+            return :($lhs = $(Core.eval(mod, symfunc))($(argsorig...)))
         elseif which == :pluseq # use x += y instead of x .+= y for Zygote
-            return :($lhs += $(eval(mod, symfunc))($(argsorig...)))
+            return :($lhs += $(Core.eval(mod, symfunc))($(argsorig...)))
         elseif which == :subteq # use x -= y instead of x .-= y for Zygote
-            return :($lhs -= $(eval(mod, symfunc))($(argsorig...)))
+            return :($lhs -= $(Core.eval(mod, symfunc))($(argsorig...)))
         end
     end
 
