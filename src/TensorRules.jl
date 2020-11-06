@@ -9,13 +9,6 @@ using MacroTools
 
 export @∇, @∇genedfunc
 
-function ex_to_string(ex)
-    ex isa Symbol && return string(ex)
-    ex = repr(ex)
-    str = match(r"^:\((?<str>.+)\)$", ex)
-    isnothing(str) ? ex : string(str[:str])
-end
-
 function rhs_to_args(ex::Expr)
     indsall = Union{Symbol,Expr}[]
     symorig, symgend = Union{Symbol,Expr}[], Symbol[]
@@ -34,14 +27,14 @@ function rhs_to_args(ex::Expr)
             # NOTE: :typed_vcat (e.g., A[a; b]) and :typed_hcat (e.g., A[a b]) are
             # unsupported since the limitation of @capture macro
             all(x -> !isa(x, Integer), ind) || error("NCON style is unsupported")
-            new = gensym(ex_to_string(sym))
+            new = gensym()
             push!(symorig, sym)
             push!(symgend, new)
             append!(indsall, ind)
             :(conj($new[$(ind...)]))
         elseif @capture(x, sym_[ind__])
             all(x -> !isa(x, Integer), ind) || error("NCON style is unsupported")
-            new = gensym(ex_to_string(sym))
+            new = gensym()
             push!(symorig, sym)
             push!(symgend, new)
             append!(indsall, ind)
@@ -49,7 +42,7 @@ function rhs_to_args(ex::Expr)
         elseif x isa Number
             x
         else
-            new = gensym(ex_to_string(x))
+            new = gensym()
             push!(symorig, x)
             push!(symgend, new)
             new
@@ -133,7 +126,7 @@ function gen_rule(
 
     Δargs, Δexargs = Symbol[], Expr[]
     for arg in args
-        Δarg = gensym(arg)
+        Δarg = gensym()
         rhsarg = make_only_product(rhs, arg)
 
         ind, isconj = Ref{Vector{Any}}(), Ref{Bool}()
@@ -261,7 +254,7 @@ function _nabla(ex::Expr; mod)
         lhs, lhsind, rhs, which = lhs[], lhsind[], rhs[], which[]
 
         rhsreplace, argsorig, argsdummy, indsall = rhs_to_args(rhs)
-        symfunc = gensym(lhs)
+        @gensym symfunc
 
         push!(symfuncs, symfunc)
 
