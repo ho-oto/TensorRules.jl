@@ -7,8 +7,6 @@ using Zygote
 
 Zygote.refresh()
 
-TensorRules.showexpr[] = true
-
 @testset "RHS parse" begin
     ex = quote
         (A[1:end, :][1, 2][a, b'] + sin(cos(B))[b', a'']) * (C*D+E)[a'', a] * 3 * 2 +
