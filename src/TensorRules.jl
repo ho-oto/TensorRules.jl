@@ -225,7 +225,7 @@ function _nabla(ex::Expr)
     def = splitdef(ex)
     exfuncs, exrules = Expr[], Expr[]
 
-    exbody = MacroTools.postwalk(def[:body]) do x
+    def[:body] = MacroTools.postwalk(def[:body]) do x
         lhs, lhsind, rhs = Ref{Symbol}(), Ref{Vector{Any}}(), Ref{Expr}()
         which, opt = Ref{Symbol}(), Ref{Expr}()
 
@@ -274,8 +274,8 @@ function _nabla(ex::Expr)
         end
     end
 
-    def[:body] = exbody
-    exout = Expr(:block, exfuncs..., exrules..., MacroTools.combinedef(def))
+    exout =
+        Expr(:block, Expr(:toplevel, exfuncs..., exrules...), MacroTools.combinedef(def))
     return esc(exout)
 end
 
