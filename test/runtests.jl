@@ -9,6 +9,8 @@ using TensorRules
 using Test
 using Zygote
 
+Zygote.refresh()
+
 @testset "Theory" begin
     rng = MersenneTwister(1234321)
     test1(a, b, c, d) = @tensor _[A, C] := a * conj(b[A, B]) * c[B, C] + d[A, C]
