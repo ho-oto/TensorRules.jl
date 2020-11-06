@@ -284,4 +284,8 @@ macro ∇(ex)
     _nabla(ex; mod = @__MODULE__)[1]
 end
 
+macro ∇genedfunc(i::Int, ex)
+    _nabla(ex; mod = @__MODULE__)[2][i]
+end
+
 end
