@@ -9,7 +9,7 @@ export rrule, frule, NO_FIELDS, Zero, Thunk
 export I
 export @tensor, @tensoropt
 
-export @∇, @∇genedfunc
+export @∇, @fn∇
 
 function rhs_to_args(ex::Expr)
     indsall = Union{Symbol,Expr}[]
@@ -278,11 +278,13 @@ function _nabla(ex::Expr; mod)
 end
 
 macro ∇(ex)
-    _nabla(ex; mod = @__MODULE__)[1]
+    ex, _ = _nabla(ex; mod = @__MODULE__)
+    return ex
 end
 
-macro ∇genedfunc(i::Int, ex)
-    _nabla(ex; mod = @__MODULE__)[2][i]
+macro fn∇(i, ex)
+    _, fn = _nabla(ex; mod = @__MODULE__)
+    return fn[i]
 end
 
 end

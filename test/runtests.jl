@@ -46,20 +46,20 @@ end
 
 @testset "gen_rule" begin
 
-    t_einsum =
-        @∇genedfunc 1 a(b, c, d) = @tensor a[B, A] := conj(b[A, C]) * c[C, D] * d[B, D]
-    t_opt1 = @∇genedfunc 1 a(b, c, d) =
+    _esum =
+        @fn∇ 1 a(b, c, d) = @tensor a[B, A] := conj(b[A, C]) * c[C, D] * d[B, D]
+    _opt1 = @fn∇ 1 a(b, c, d) =
         @tensoropt (A => 1, C => χ) a[B, A] := b[A, C] * c[C, D] * d[B, D]
-    t_opt2 =
-        @∇genedfunc 1 a(b, c, d) = @tensoropt !(A, C) a[B, A] := b[A, C] * c[C, D] * d[B, D]
-    t_opt3 =
-        @∇genedfunc 1 a(b, c, d) = @tensoropt (A, C) a[B, A] := b[A, C] * c[C, D] * d[B, D]
-    t_rsca = @∇genedfunc 1 a(α, b, c) = @tensor a[B, A] := α * conj(b[A, C]) * c[C, B]
-    t_add = @∇genedfunc 1 a(α, b, c, β, bb, cc, ccc) = @tensor a[B, A] :=
+    _opt2 =
+        @fn∇ 1 a(b, c, d) = @tensoropt !(A, C) a[B, A] := b[A, C] * c[C, D] * d[B, D]
+    _opt3 =
+        @fn∇ 1 a(b, c, d) = @tensoropt (A, C) a[B, A] := b[A, C] * c[C, D] * d[B, D]
+    _scar = @fn∇ 1 a(α, b, c) = @tensor a[B, A] := α * conj(b[A, C]) * c[C, B]
+    _add = @fn∇ 1 a(α, b, c, β, bb, cc, ccc) = @tensor a[B, A] :=
         -α * conj(b[A, C]) * c[C, B] + β * bb[A, C] * (-cc[C, B] + 2 * ccc[C, B])
-    t_tr1 = @∇genedfunc 1 a(b, c) = @tensor a[C] := b[A, B, B', B', B] * c[A, A', A', C]
-    t_tr2 = @∇genedfunc 1 a(b, c) = @tensor a[C] := b[A, B, BB, BB, B] * c[A, AA, AA, C]
-    t_lsca = @∇genedfunc 1 a(b, c, d) = @tensor a[] := b[A, B] * c[B, C] * d[C, A]
+    _tr1 = @fn∇ 1 a(b, c) = @tensor a[C] := b[A, B, B', B', B] * c[A, A', A', C]
+    _tr2 = @fn∇ 1 a(b, c) = @tensor a[C] := b[A, B, BB, BB, B] * c[A, AA, AA, C]
+    _scal = @fn∇ 1 a(b, c, d) = @tensor a[] := b[A, B] * c[B, C] * d[C, A]
 
     rng = MersenneTwister(1234321)
 
@@ -75,13 +75,13 @@ end
         β, Δβ = randn(rng, T), randn(rng, T)
 
 
-        rrule_test(t_einsum, a, (b, Δb), (c, Δc), (d, Δd))
-        rrule_test(t_opt1, a, (b, Δb), (c, Δc), (d, Δd))
-        rrule_test(t_opt2, a, (b, Δb), (c, Δc), (d, Δd))
-        rrule_test(t_opt3, a, (b, Δb), (c, Δc), (d, Δd))
-        rrule_test(t_rsca, a, (α, Δα), (b, Δb), (c, Δc))
+        rrule_test(_esum, a, (b, Δb), (c, Δc), (d, Δd))
+        rrule_test(_opt1, a, (b, Δb), (c, Δc), (d, Δd))
+        rrule_test(_opt2, a, (b, Δb), (c, Δc), (d, Δd))
+        rrule_test(_opt3, a, (b, Δb), (c, Δc), (d, Δd))
+        rrule_test(_scar, a, (α, Δα), (b, Δb), (c, Δc))
         rrule_test(
-            t_add,
+            _add,
             a,
             (α, Δα),
             (b, Δb),
@@ -96,15 +96,15 @@ end
         b, Δb = randn(rng, T, 3, 2, 3, 3, 2), randn(rng, T, 3, 2, 3, 3, 2)
         c, Δc = randn(rng, T, 3, 3, 3, 2), randn(rng, T, 3, 3, 3, 2)
 
-        rrule_test(t_tr1, a, (b, Δb), (c, Δc))
-        rrule_test(t_tr2, a, (b, Δb), (c, Δc))
+        rrule_test(_tr1, a, (b, Δb), (c, Δc))
+        rrule_test(_tr2, a, (b, Δb), (c, Δc))
 
         a = randn(rng, T, 1)
         b, Δb = randn(rng, T, 3, 2), randn(rng, T, 3, 2)
         c, Δc = randn(rng, T, 2, 4), randn(rng, T, 2, 4)
         d, Δd = randn(rng, T, 4, 3), randn(rng, T, 4, 3)
 
-        rrule_test(t_lsca, a, (b, Δb), (c, Δc), (d, Δd))
+        rrule_test(_scal, a, (b, Δb), (c, Δc), (d, Δd))
     end
 end
 
