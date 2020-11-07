@@ -9,16 +9,16 @@ Zygote.refresh()
 
 @testset "RHS parse" begin
     ex = quote
-        (A[1:end, :][1, 2][a, b'] + sin(cos(B))[b', a'']) * (C*D+E)[a'', a] * 3 * 2 +
-        α * C[a, a] * K[1, 2, 3][a, a] -
+        (a[1:end, :][1, 2][a, b'] + sin(cos(B))[b', a'']) * (C*D+E)[a'', a] * 3 * 2 +
+        α * a[a, a] * K[1, 2, 3][a, a] -
         (((L[a, b] * P.P[b, c]) * (M[c, d] * N[d, e]) * Z[e, f]) * D[f, a]) * π
     end
     @test TensorRules.rhs_to_args(ex)[2] == [
-        :(A[1:end, :][1, 2]),
+        :(a[1:end, :][1, 2]),
         :(sin(cos(B))),
         :(C * D + E),
         :α,
-        :C,
+        :a,
         :(K[1, 2, 3]),
         :L,
         :(P.P),
@@ -58,7 +58,7 @@ end
     _add = @fn∇ 1 a(α, b, c, β, bb, cc, ccc) = @tensor a[B, A] :=
         -α * conj(b[A, C]) * c[C, B] + β * bb[A, C] * (-cc[C, B] + 2 * ccc[C, B])
     _tr1 = @fn∇ 1 a(b, c) = @tensor a[C] := b[A, B, B', B', B] * c[A, A', A', C]
-    _tr2 = @fn∇ 1 a(b, c) = @tensor a[C] := b[A, B, BB, BB, B] * c[A, AA, AA, C]
+    _tr2 = @fn∇ 1 a(b, c) = @tensor a[c] := b[a, b, bb, bb, b] * c[a, aa, aa, c]
     _scal = @fn∇ 1 a(b, c, d) = @tensor a[] := b[A, B] * c[B, C] * d[C, A]
 
     rng = MersenneTwister(1234321)
