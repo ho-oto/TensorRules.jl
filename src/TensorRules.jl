@@ -5,7 +5,7 @@ using LinearAlgebra
 using MacroTools
 using TensorOperations
 
-export rrule, frule, NO_FIELDS, AbstractZero, Zero, Thunk
+export rrule, frule, NO_FIELDS, Zero, Thunk
 export I
 export @tensor, @tensoropt
 
@@ -126,13 +126,13 @@ function gen_rule(
         :($Δlhssym[$(lhsind...)])
     end
 
-    Δargs, Δexargs = Symbol[], Expr[]
+    ∂args, ∂exargs = Symbol[], Expr[]
     for arg in args
-        Δarg = gensym()
+        ∂arg = gensym()
         rhsarg = make_only_product(rhs, arg)
 
         ind, isconj = Ref{Vector{Any}}(), Ref{Bool}(false)
-        Δexarg = MacroTools.prewalk(rhsarg) do x # assume to match only once
+        ∂exarg = MacroTools.prewalk(rhsarg) do x # assume to match only once
             if @capture(x, conj($arg[_ind__]))
                 ind[], isconj[] = _ind, true
                 :(conj($Δlhs))
@@ -168,45 +168,45 @@ function gen_rule(
                     )
                 end
             end
-            Δexarg = :(*($Δexarg, $(δs...)))
+            ∂exarg = :(*($∂exarg, $(δs...)))
         elseif istensor
             append!(indtr, ind[])
         end
 
-        Δexarg = if istensor
+        ∂exarg = if istensor
             if isassigned(opt)
-                :(@tensoropt $(opt[]) $Δarg[$(indtr...)] := $Δexarg)
+                :(@tensoropt $(opt[]) $∂arg[$(indtr...)] := $∂exarg)
             else
-                :(@tensor $Δarg[$(indtr...)] := $Δexarg)
+                :(@tensor $∂arg[$(indtr...)] := $∂exarg)
             end
         else
             if isassigned(opt)
-                :(@tensoropt $(opt[]) $Δarg[] := $Δexarg;
-                $Δarg = first($Δarg))
+                :(@tensoropt $(opt[]) $∂arg[] := $∂exarg;
+                $∂arg = first($∂arg))
             else
-                :(@tensor $Δarg[] := $Δexarg;
-                $Δarg = first($Δarg))
+                :(@tensor $∂arg[] := $∂exarg;
+                $∂arg = first($∂arg))
             end
         end
-        Δexarg = isconj[] ? Δexarg : Expr(:block, Δexarg, :($Δarg = conj($Δarg)))
-        Δexarg = quote
-            $Δarg = Thunk(() -> $Δexarg)
+        ∂exarg = isconj[] ? ∂exarg : Expr(:block, ∂exarg, :($∂arg = conj($∂arg)))
+        ∂exarg = quote
+            $∂arg = Thunk(() -> $∂exarg)
         end
 
-        push!(Δargs, Δarg)
-        push!(Δexargs, Δexarg)
+        push!(∂args, ∂arg)
+        push!(∂exargs, ∂exarg)
     end
 
-    Δexargs = map(x -> macroexpand(TensorOperations, x), Δexargs)
+    ∂exargs = map(x -> macroexpand(TensorOperations, x), ∂exargs)
 
     @gensym valforw funcback
     backbody = Expr(
         :block,
         :($Δlhssym = Array($Δlhssym)),
-        Δexargs...,
-        :(return (NO_FIELDS, $(Δargs...))),
+        ∂exargs...,
+        :(return (NO_FIELDS, $(∂args...))),
     )
-    zerobody = :((NO_FIELDS, $(fill(Zero(), length(Δargs))...)))
+    zerobody = :((NO_FIELDS, $(fill(Zero(), length(∂args))...)))
 
     return quote
         function ChainRulesCore.rrule(::typeof($funcname), $(args...))
