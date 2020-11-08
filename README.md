@@ -89,7 +89,7 @@ in the expression. Please use `:=`, `+=` and `-=` instead.
 
 ## TODO
 
-- [ ] support `frule`
+- [x] support `frule`
 - [ ] support `@tensor` block (`@tensor begin ... end`)
 - [ ] support higher order differentiation (by applying `@∇` to `rrule` and `frule` recursively)
 - [x] use `@thunk` ?
