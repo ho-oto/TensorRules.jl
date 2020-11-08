@@ -87,7 +87,7 @@ function make_only_product(ex::Expr, sym::Symbol)
     end
 end
 
-function gen_func(
+function genfunc(
     funcname::Symbol,
     args::Vector{Symbol},
     lhsind::Vector{Any},
@@ -109,13 +109,63 @@ function gen_func(
     return macroexpand(TensorOperations, ex)
 end
 
-function gen_rule(
+function genfrule(
     funcname::Symbol,
     args::Vector{Symbol},
     lhsind::Vector{Any},
     rhs::Expr,
-    indsall::Vector{Union{Symbol,Expr}},
     opt::Ref{Expr},
+)
+    ȧrgs, ṙhss = Symbol[], Expr[]
+    for arg in args
+        @gensym ȧrg
+        ṙhs = make_only_product(rhs, arg)
+
+        ṙhs = MacroTools.prewalk(ṙhs) do x # assume to match only once
+            if @capture(x, conj($arg[ind__]))
+                :(conj($ȧrg[$(ind...)]))
+            elseif @capture(x, $arg[ind__])
+                :($ȧrg[$(ind...)])
+            elseif @capture(x, $arg)
+                :($ȧrg)
+            else
+                x
+            end
+        end
+
+        push!(ȧrgs, ȧrg)
+        push!(ṙhss, ṙhs)
+    end
+    @assert length(ṙhss) ≥ 1
+    ṙhs = length(ṙhss) == 1 ? ṙhss[1] : Expr(:call, :+, ṙhss...)
+
+    @gensym val v̇al
+    lhs = isempty(lhsind) ? :($v̇al[]) : :($v̇al[$(lhsind...)])
+
+    pushbody = if isassigned(opt)
+        :(@tensoropt $(opt[]) $lhs := $ṙhs)
+    else
+        :(@tensor $lhs := $ṙhs)
+    end
+
+    pushbody = macroexpand(TensorOperations, pushbody)
+
+    return quote
+        function ChainRulesCore.frule((_, $(ȧrgs...)), ::typeof($funcname), $(args...))
+            $val = $(funcname)($(args...))
+            $pushbody
+            return ($val, $v̇al)
+        end
+    end
+end
+
+function genrrule(
+    funcname::Symbol,
+    args::Vector{Symbol},
+    lhsind::Vector{Any},
+    rhs::Expr,
+    opt::Ref{Expr},
+    indsall::Vector{Union{Symbol,Expr}},
 )
     indsall = [lhsind; indsall]
 
@@ -276,8 +326,9 @@ function _nabla(ex::Expr; mod)
 
         push!(symfuncs, symfunc)
 
-        @eval mod $(gen_func(symfunc, argsdummy, lhsind, rhsreplace, opt))
-        @eval mod $(gen_rule(symfunc, argsdummy, lhsind, rhsreplace, indsall, opt))
+        @eval mod $(genfunc(symfunc, argsdummy, lhsind, rhsreplace, opt))
+        @eval mod $(genfrule(symfunc, argsdummy, lhsind, rhsreplace, opt))
+        @eval mod $(genrrule(symfunc, argsdummy, lhsind, rhsreplace, opt, indsall))
 
         if which == :assign
             return :($lhs = $(Core.eval(mod, symfunc))($(argsorig...)))
