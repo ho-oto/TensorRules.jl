@@ -5,7 +5,7 @@ using LinearAlgebra
 using MacroTools
 using TensorOperations
 
-export rrule, frule, NO_FIELDS, Zero, Thunk
+export rrule, frule, NO_FIELDS, Zero, Thunk, InplaceableThunk
 export I
 export @tensor, @tensoropt
 
@@ -132,7 +132,7 @@ function gen_rule(
         rhsarg = make_only_product(rhs, arg)
 
         ind, isconj = Ref{Vector{Any}}(), Ref{Bool}(false)
-        ∂exarg = MacroTools.prewalk(rhsarg) do x # assume to match only once
+        ∂exrhs = MacroTools.prewalk(rhsarg) do x # assume to match only once
             if @capture(x, conj($arg[_ind__]))
                 ind[], isconj[] = _ind, true
                 :(conj($Δlhs))
@@ -168,28 +168,44 @@ function gen_rule(
                     )
                 end
             end
-            ∂exarg = :(*($∂exarg, $(δs...)))
+            ∂exrhs = :(*($∂exrhs, $(δs...)))
         elseif istensor
             append!(indtr, ind[])
         end
 
-        ∂exarg = isconj[] ? ∂exarg : :(conj($∂exarg))
-        ∂exarg = if istensor
+        ∂exrhs = isconj[] ? ∂exrhs : :(conj($∂exrhs))
+
+        ∂exval = if istensor
             if isassigned(opt)
-                :(@tensoropt $(opt[]) $∂arg[$(indtr...)] := $∂exarg)
+                :(@tensoropt $(opt[]) $∂arg[$(indtr...)] := $∂exrhs)
             else
-                :(@tensor $∂arg[$(indtr...)] := $∂exarg)
+                :(@tensor $∂arg[$(indtr...)] := $∂exrhs)
             end
         else
             if isassigned(opt)
-                :(@tensoropt $(opt[]) $∂arg[] := $∂exarg;
+                :(@tensoropt $(opt[]) $∂arg[] := $∂exrhs;
                 $∂arg = first($∂arg))
             else
-                :(@tensor $∂arg[] := $∂exarg;
+                :(@tensor $∂arg[] := $∂exrhs;
                 $∂arg = first($∂arg))
             end
         end
-        ∂exarg = :($∂arg = Thunk(() -> $∂exarg))
+
+        ∂exadd! = if istensor
+            if isassigned(opt)
+                :($∂arg -> @tensoropt $(opt[]) $∂arg[$(indtr...)] += $∂exrhs)
+            else
+                :($∂arg -> @tensor $∂arg[$(indtr...)] += $∂exrhs)
+            end
+        else
+            nothing
+        end
+
+        ∂exarg = if istensor
+            :($∂arg = InplaceableThunk(Thunk(() -> $∂exval), $∂exadd!))
+        else
+            :($∂arg = Thunk(() -> $∂exval))
+        end
 
         push!(∂args, ∂arg)
         push!(∂exargs, ∂exarg)
