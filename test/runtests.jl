@@ -44,8 +44,11 @@ Zygote.refresh()
     @test TensorRules.make_only_product(ex, :j) == :j
 end
 
-@testset "gen_rule" begin
+# workaround
+ChainRulesTestUtils.rand_tangent(x::StridedArray{T,0}) where {T} =
+    fill(ChainRulesTestUtils.rand_tangent(x[]))
 
+@testset "rules" begin
     _esum = @fn∇ 1 a(b, c, d) = @tensor a[B, A] := conj(b[A, C]) * c[C, D] * d[B, D]
     _opt1 = @fn∇ 1 a(b, c, d) =
         @tensoropt (A => 1, C => χ) a[B, A] := b[A, C] * c[C, D] * d[B, D]
@@ -62,9 +65,9 @@ end
 
     for T in (ComplexF64, Float64)
         a = randn(rng, T, 4, 3)
-        b, Δb = randn(rng, T, 3, 5), randn(rng, T, 3, 5)
+        b1, Δb1 = randn(rng, T, 3, 5), randn(rng, T, 3, 5)
         b2, Δb2 = randn(rng, T, 3, 5), randn(rng, T, 3, 5)
-        c, Δc = randn(rng, T, 5, 4), randn(rng, T, 5, 4)
+        c1, Δc1 = randn(rng, T, 5, 4), randn(rng, T, 5, 4)
         c2, Δc2 = randn(rng, T, 5, 4), randn(rng, T, 5, 4)
         c3, Δc3 = randn(rng, T, 5, 4), randn(rng, T, 5, 4)
         d, Δd = randn(rng, T, 4, 4), randn(rng, T, 4, 4)
@@ -72,17 +75,33 @@ end
         β, Δβ = randn(rng, T), randn(rng, T)
 
 
-        rrule_test(_esum, a, (b, Δb), (c, Δc), (d, Δd))
-        rrule_test(_opt1, a, (b, Δb), (c, Δc), (d, Δd))
-        rrule_test(_opt2, a, (b, Δb), (c, Δc), (d, Δd))
-        rrule_test(_opt3, a, (b, Δb), (c, Δc), (d, Δd))
-        rrule_test(_scar, a, (α, Δα), (b, Δb), (c, Δc))
+        rrule_test(_esum, a, (b1, Δb1), (c1, Δc1), (d, Δd))
+        rrule_test(_opt1, a, (b1, Δb1), (c1, Δc1), (d, Δd))
+        rrule_test(_opt2, a, (b1, Δb1), (c1, Δc1), (d, Δd))
+        rrule_test(_opt3, a, (b1, Δb1), (c1, Δc1), (d, Δd))
+        rrule_test(_scar, a, (α, Δα), (b1, Δb1), (c1, Δc1))
         rrule_test(
             _add,
             a,
             (α, Δα),
-            (b, Δb),
-            (c, Δc),
+            (b1, Δb1),
+            (c1, Δc1),
+            (β, Δβ),
+            (b2, Δb2),
+            (c2, Δc2),
+            (c3, Δc3),
+        )
+
+        frule_test(_esum, (b1, Δb1), (c1, Δc1), (d, Δd))
+        frule_test(_opt1, (b1, Δb1), (c1, Δc1), (d, Δd))
+        frule_test(_opt2, (b1, Δb1), (c1, Δc1), (d, Δd))
+        frule_test(_opt3, (b1, Δb1), (c1, Δc1), (d, Δd))
+        frule_test(_scar, (α, Δα), (b1, Δb1), (c1, Δc1))
+        frule_test(
+            _add,
+            (α, Δα),
+            (b1, Δb1),
+            (c1, Δc1),
             (β, Δβ),
             (b2, Δb2),
             (c2, Δc2),
@@ -95,6 +114,8 @@ end
 
         rrule_test(_tr1, a, (b, Δb), (c, Δc))
         rrule_test(_tr2, a, (b, Δb), (c, Δc))
+        frule_test(_tr1, (b, Δb), (c, Δc))
+        frule_test(_tr2, (b, Δb), (c, Δc))
 
         a = randn(rng, T, 1)
         b, Δb = randn(rng, T, 3, 2), randn(rng, T, 3, 2)
@@ -102,6 +123,7 @@ end
         d, Δd = randn(rng, T, 4, 3), randn(rng, T, 4, 3)
 
         rrule_test(_scal, a, (b, Δb), (c, Δc), (d, Δd))
+        frule_test(_scal, (b, Δb), (c, Δc), (d, Δd))
     end
 end
 

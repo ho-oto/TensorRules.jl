@@ -3,7 +3,9 @@
 [![Build Status](https://github.com/ho-oto/TensorRules.jl/workflows/CI/badge.svg)](https://github.com/ho-oto/TensorRules.jl/actions)
 
 `TensorRules.jl` provides a macro `@∇` (you can type `∇` by `\nabla<tab>`), which
-enable us to use automatic differentiation (AD) libraries (e.g., [`Zygote.jl`](https://github.com/FluxML/Zygote.jl))
+enable us to use automatic differentiation (AD) libraries (e.g.,
+[`Zygote.jl`](https://github.com/FluxML/Zygote.jl),
+[`ForwardDiff.jl`](https://github.com/JuliaDiff/ForwardDiff.jl))
 with `@tensor` and `@tensoropt` macros in [`TensorOperations.jl`](https://github.com/Jutho/TensorOperations.jl).
 
 `TensorRules.jl` uses [`ChainRulesCore.jl`](https://github.com/JuliaDiff/ChainRulesCore.jl) to define custom adjoints.
@@ -87,7 +89,7 @@ in the expression. Please use `:=`, `+=` and `-=` instead.
 
 ## TODO
 
-- [ ] support `frule`
+- [x] support `frule`
 - [ ] support `@tensor` block (`@tensor begin ... end`)
 - [ ] support higher order differentiation (by applying `@∇` to `rrule` and `frule` recursively)
 - [x] use `@thunk` ?
