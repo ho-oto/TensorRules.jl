@@ -173,6 +173,7 @@ function gen_rule(
             append!(indtr, ind[])
         end
 
+        ∂exarg = isconj[] ? ∂exarg : :(conj($∂exarg))
         ∂exarg = if istensor
             if isassigned(opt)
                 :(@tensoropt $(opt[]) $∂arg[$(indtr...)] := $∂exarg)
@@ -188,10 +189,7 @@ function gen_rule(
                 $∂arg = first($∂arg))
             end
         end
-        ∂exarg = isconj[] ? ∂exarg : Expr(:block, ∂exarg, :($∂arg = conj($∂arg)))
-        ∂exarg = quote
-            $∂arg = Thunk(() -> $∂exarg)
-        end
+        ∂exarg = :($∂arg = Thunk(() -> $∂exarg))
 
         push!(∂args, ∂arg)
         push!(∂exargs, ∂exarg)
