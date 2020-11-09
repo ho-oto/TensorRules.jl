@@ -9,56 +9,54 @@ export rrule, frule, NO_FIELDS, Zero, Thunk, InplaceableThunk
 export I
 export @tensor, @tensoropt
 
-export @∇, @fn∇
+export @∇
 
 function rhs_to_args(ex::Expr)
     indsall = Union{Symbol,Expr}[]
-    symorig, symgend = Union{Symbol,Expr}[], Symbol[]
+    symorig, symgend, isconjs = Union{Symbol,Expr}[], Symbol[], Bool[]
 
-    exparse(x) =
-        if @capture(x, -(rhs__))
-            y = exparse.(rhs)
+    exparse(x, isconj) =
+        if x isa Number
+            x
+        elseif @capture(x, -(rhs__))
+            y = exparse.(rhs, isconj)
             :(-($(y...)))
         elseif @capture(x, +(rhs__))
-            y = exparse.(rhs)
+            y = exparse.(rhs, isconj)
             :(+($(y...)))
         elseif @capture(x, *(rhs__))
-            y = exparse.(rhs)
+            y = exparse.(rhs, isconj)
             :(*($(y...)))
-        elseif @capture(x, conj(sym_[ind__]))
-            # NOTE: :typed_vcat (e.g., A[a; b]) and :typed_hcat (e.g., A[a b]) are
-            # unsupported since the limitation of @capture macro
-            all(x -> !isa(x, Integer), ind) || error("NCON style is unsupported")
-            new = gensym()
-            push!(symorig, sym)
-            push!(symgend, new)
-            append!(indsall, ind)
-            :(conj($new[$(ind...)]))
+        elseif @capture(x, conj(rhs_))
+            y = exparse(rhs, !isconj)
+            :(conj($y))
         elseif @capture(x, sym_[ind__])
-            all(x -> !isa(x, Integer), ind) || error("NCON style is unsupported")
-            new = gensym()
+            any(x -> isa(x, Integer), ind) && error("NCON style is unsupported")
+            @gensym new
             push!(symorig, sym)
             push!(symgend, new)
+            push!(isconjs, isconj)
             append!(indsall, ind)
             :($new[$(ind...)])
-        elseif x isa Number
-            x
         else
-            new = gensym()
+            @gensym new
             push!(symorig, x)
             push!(symgend, new)
+            push!(isconjs, isconj)
             new
         end
 
-    exreplaced = exparse(ex)
-    return exreplaced, symorig, symgend, indsall
+    exreplaced = exparse(ex, false)
+    return exreplaced, symorig, symgend, isconjs, indsall
 end
 
 function make_only_product(ex::Expr, sym::Symbol)
     hassym(x) =
         if @capture(x, -(y__) | +(y__) | *(y__))
             any(hassym.(y))
-        elseif @capture(x, $sym) || @capture(x, $sym[__]) || @capture(x, conj($sym[__]))
+        elseif @capture(x, conj(y_))
+            hassym(y)
+        elseif @capture(x, $sym) || @capture(x, $sym[__])
             true
         else
             false
@@ -122,22 +120,13 @@ function genfrule(
         ṙhs = make_only_product(rhs, arg)
 
         ṙhs = MacroTools.prewalk(ṙhs) do x # assume to match only once
-            if @capture(x, conj($arg[ind__]))
-                :(conj($ȧrg[$(ind...)]))
-            elseif @capture(x, $arg[ind__])
-                :($ȧrg[$(ind...)])
-            elseif @capture(x, $arg)
-                :($ȧrg)
-            else
-                x
-            end
+            @capture(x, $arg) ? ȧrg : x
         end
 
         push!(ȧrgs, ȧrg)
         push!(ṙhss, ṙhs)
     end
-    @assert length(ṙhss) ≥ 1
-    ṙhs = length(ṙhss) == 1 ? ṙhss[1] : Expr(:call, :+, ṙhss...)
+    ṙhs = :(+$(ṙhss...))
 
     @gensym val v̇al
     lhs = isempty(lhsind) ? :($v̇al[]) : :($v̇al[$(lhsind...)])
@@ -165,6 +154,7 @@ function genrrule(
     lhsind::Vector{Any},
     rhs::Expr,
     opt::Ref{Expr},
+    isconjs::Vector{Bool},
     indsall::Vector{Union{Symbol,Expr}},
 )
     indsall = [lhsind; indsall]
@@ -177,20 +167,17 @@ function genrrule(
     end
 
     ∂args, ∂exargs = Symbol[], Expr[]
-    for arg in args
-        ∂arg = gensym()
+    for (arg, isconj) in zip(args, isconjs)
+        @gensym ∂arg
         rhsarg = make_only_product(rhs, arg)
 
-        ind, isconj = Ref{Vector{Any}}(), Ref{Bool}(false)
+        ind = Ref{Vector{Any}}()
         ∂exrhs = MacroTools.prewalk(rhsarg) do x # assume to match only once
-            if @capture(x, conj($arg[_ind__]))
-                ind[], isconj[] = _ind, true
-                :(conj($Δlhs))
-            elseif @capture(x, $arg[_ind__])
+            if @capture(x, $arg[_ind__])
                 ind[] = _ind
-                :(conj($Δlhs))
+                isconj ? Δlhs : :(conj($Δlhs))
             elseif @capture(x, $arg)
-                :(conj($Δlhs))
+                isconj ? Δlhs : :(conj($Δlhs))
             else
                 x
             end
@@ -223,7 +210,7 @@ function genrrule(
             append!(indtr, ind[])
         end
 
-        ∂exrhs = isconj[] ? ∂exrhs : :(conj($∂exrhs))
+        ∂exrhs = isconj ? ∂exrhs : :(conj($∂exrhs))
 
         ∂exval = if istensor
             if isassigned(opt)
@@ -233,11 +220,9 @@ function genrrule(
             end
         else
             if isassigned(opt)
-                :(@tensoropt $(opt[]) $∂arg[] := $∂exrhs;
-                $∂arg = first($∂arg))
+                :(first(@tensoropt $(opt[]) $∂arg[] := $∂exrhs))
             else
-                :(@tensor $∂arg[] := $∂exrhs;
-                $∂arg = first($∂arg))
+                :(first(@tensor $∂arg[] := $∂exrhs))
             end
         end
 
@@ -321,14 +306,14 @@ function _nabla(ex::Expr; mod)
 
         lhs, lhsind, rhs, which = lhs[], lhsind[], rhs[], which[]
 
-        rhsreplace, argsorig, argsdummy, indsall = rhs_to_args(rhs)
+        rhsreplace, argsorig, argsdummy, isconjs, indsall = rhs_to_args(rhs)
         @gensym symfunc
 
         push!(symfuncs, symfunc)
 
         @eval mod $(genfunc(symfunc, argsdummy, lhsind, rhsreplace, opt))
         @eval mod $(genfrule(symfunc, argsdummy, lhsind, rhsreplace, opt))
-        @eval mod $(genrrule(symfunc, argsdummy, lhsind, rhsreplace, opt, indsall))
+        @eval mod $(genrrule(symfunc, argsdummy, lhsind, rhsreplace, opt, isconjs, indsall))
 
         if which == :assign
             return :($lhs = $(Core.eval(mod, symfunc))($(argsorig...)))
