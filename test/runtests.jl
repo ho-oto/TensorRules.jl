@@ -42,6 +42,16 @@ Zygote.refresh()
     @test make_only_product(ex, :h) == :(-a * -(g * h) * i)
     @test make_only_product(ex, :i) == :(-a * (-b + (c + d) + (-e) - f - (g * h)) * i)
     @test make_only_product(ex, :j) == :j
+
+    ex = :(-a * (-conj(conj(b)) + conj(conj(c + d * e) + f) + -g))
+    @test make_only_product(ex, :a) ==
+          :(-a * (-conj(conj(b)) + conj(conj(c + d * e) + f) + -g))
+    @test make_only_product(ex, :b) == :(-a * -conj(conj(b)))
+    @test make_only_product(ex, :c) == :(-a * conj(conj(c)))
+    @test make_only_product(ex, :d) == :(-a * conj(conj(d * e)))
+    @test make_only_product(ex, :e) == :(-a * conj(conj(d * e)))
+    @test make_only_product(ex, :f) == :(-a * conj(f))
+    @test make_only_product(ex, :g) == :(-a * -(g))
 end
 
 # work around for test
