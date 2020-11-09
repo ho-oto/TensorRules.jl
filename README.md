@@ -91,5 +91,9 @@ in the expression. Please use `:=`, `+=` and `-=` instead.
 
 - [x] support `frule`
 - [ ] support `@tensor` block (`@tensor begin ... end`)
-- [ ] support higher order differentiation (by applying `@∇` to `rrule` and `frule` recursively)
+- [x] support higher order differentiation (by applying `@∇` to `rrule` and `frule` recursively)
+    - [ ] add more test (higher order differentiations are not well tested
+    since `Zygote.jl` has poor support of higher order differentiation...😞)
+    - [ ] better support of `InplaceableThunk` (in this version, when we use `@∇ i foo(...) = ...`
+    where `i > 1`, `InplaceableThunk` will be disabled)
 - [x] use `@thunk` ?

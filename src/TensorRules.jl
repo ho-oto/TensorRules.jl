@@ -85,6 +85,35 @@ function make_only_product(ex::Expr, sym::Symbol)
     end
 end
 
+function make_scalar_first(ex::Expr)
+    return MacroTools.postwalk(ex) do x
+        if @capture(x, *(y__))
+            tensors = Expr[]
+            notensors = Union{Expr,Symbol,Number}[]
+
+            for z in y
+                if @capture(z, _[__]) || @capture(z, conj(_[__]))
+                    push!(tensors, z)
+                else
+                    push!(notensors, z)
+                end
+            end
+
+            isempty(tensors) && return x
+
+            if isempty(notensors)
+                return x
+            elseif length(notensors) == 1
+                return :(*($(notensors[1]), $(tensors...)))
+            else
+                return :(*(*($(notensors...)), $(tensors...)))
+            end
+        else
+            return x
+        end
+    end
+end
+
 function genfunc(
     funcname::Symbol,
     args::Vector{Symbol},
@@ -98,13 +127,11 @@ function genfunc(
         :($funcname[$(lhsind...)] := $rhs)
     end
 
-    ex = if isassigned(opt)
-        :(@inline $funcname($(args...)) = @tensoropt $(opt[]) $ex)
+    if isassigned(opt)
+        return :(@inline $funcname($(args...)) = @tensoropt $(opt[]) $ex)
     else
-        :(@inline $funcname($(args...)) = @tensor $ex)
+        return :(@inline $funcname($(args...)) = @tensor $ex)
     end
-
-    return macroexpand(TensorOperations, ex)
 end
 
 function genfrule(
@@ -117,7 +144,7 @@ function genfrule(
     ȧrgs, ṙhss = Symbol[], Expr[]
     for arg in args
         @gensym ȧrg
-        ṙhs = make_only_product(rhs, arg)
+        ṙhs = make_scalar_first(make_only_product(rhs, arg))
 
         ṙhs = MacroTools.prewalk(ṙhs) do x # assume to match only once
             @capture(x, $arg) ? ȧrg : x
@@ -137,8 +164,6 @@ function genfrule(
         :(@tensor $lhs := $ṙhs)
     end
 
-    pushbody = macroexpand(TensorOperations, pushbody)
-
     return quote
         function ChainRulesCore.frule((_, $(ȧrgs...)), ::typeof($funcname), $(args...))
             $val = $(funcname)($(args...))
@@ -155,7 +180,8 @@ function genrrule(
     rhs::Expr,
     opt::Ref{Expr},
     isconjs::Vector{Bool},
-    indsall::Vector{Union{Symbol,Expr}},
+    indsall::Vector{Union{Symbol,Expr}};
+    useinplace::Bool,
 )
     indsall = [lhsind; indsall]
 
@@ -169,7 +195,7 @@ function genrrule(
     ∂args, ∂exargs = Symbol[], Expr[]
     for (arg, isconj) in zip(args, isconjs)
         @gensym ∂arg
-        rhsarg = make_only_product(rhs, arg)
+        rhsarg = make_scalar_first(make_only_product(rhs, arg))
 
         ind = Ref{Vector{Any}}()
         ∂exrhs = MacroTools.prewalk(rhsarg) do x # assume to match only once
@@ -236,7 +262,7 @@ function genrrule(
             nothing
         end
 
-        ∂exarg = if istensor
+        ∂exarg = if istensor && useinplace
             :($∂arg = InplaceableThunk(Thunk(() -> $∂exval), $∂exadd!))
         else
             :($∂arg = Thunk(() -> $∂exval))
@@ -245,8 +271,6 @@ function genrrule(
         push!(∂args, ∂arg)
         push!(∂exargs, ∂exarg)
     end
-
-    ∂exargs = map(x -> macroexpand(TensorOperations, x), ∂exargs)
 
     @gensym valforw funcback
     backbody = Expr(
@@ -267,7 +291,9 @@ function genrrule(
     end
 end
 
-function _nabla(ex::Expr; mod)
+function _nabla(ex::Expr, i::Integer; mod)
+    @assert i ≥ 1
+
     def = splitdef(ex)
     symfuncs, exfuncs, exrules = Symbol[], Expr[], Expr[]
 
@@ -308,12 +334,22 @@ function _nabla(ex::Expr; mod)
 
         rhsreplace, argsorig, argsdummy, isconjs, indsall = rhs_to_args(rhs)
         @gensym symfunc
-
         push!(symfuncs, symfunc)
 
-        @eval mod $(genfunc(symfunc, argsdummy, lhsind, rhsreplace, opt))
-        @eval mod $(genfrule(symfunc, argsdummy, lhsind, rhsreplace, opt))
-        @eval mod $(genrrule(symfunc, argsdummy, lhsind, rhsreplace, opt, isconjs, indsall))
+        genargs = (symfunc, argsdummy, lhsind, rhsreplace, opt)
+
+        exfunc = genfunc(genargs...)
+        exfrule = genfrule(genargs...)
+        exrrule = genrrule(genargs..., isconjs, indsall; useinplace = (i == 1))
+
+        @eval mod $(macroexpand(TensorOperations, exfunc))
+        if i > 1
+            @eval mod $(:(@∇ $(i - 1) $exfrule))
+            @eval mod $(:(@∇ $(i - 1) $exrrule))
+        else
+            @eval mod $(macroexpand(TensorOperations, exfrule))
+            @eval mod $(macroexpand(TensorOperations, exrrule))
+        end
 
         if which == :assign
             return :($lhs = $(Core.eval(mod, symfunc))($(argsorig...)))
@@ -328,12 +364,17 @@ function _nabla(ex::Expr; mod)
 end
 
 macro ∇(ex)
-    ex, _ = _nabla(ex; mod = @__MODULE__)
+    ex, _ = _nabla(ex, 1; mod = @__MODULE__)
+    return ex
+end
+
+macro ∇(i::Integer, ex)
+    ex, _ = _nabla(ex, i; mod = @__MODULE__)
     return ex
 end
 
 macro fn∇(i, ex)
-    _, fn = _nabla(ex; mod = @__MODULE__)
+    _, fn = _nabla(ex, 1; mod = @__MODULE__)
     return fn[i]
 end
 
