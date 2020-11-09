@@ -11,8 +11,6 @@ export @tensor, @tensoropt
 
 export @∇
 
-const defaultorder = Ref{Int}(1)
-
 function rhs_to_args(ex::Expr)
     indsall = Union{Symbol,Expr}[]
     symorig, symgend, isconjs = Union{Symbol,Expr}[], Symbol[], Bool[]
@@ -293,7 +291,7 @@ function genrrule(
     end
 end
 
-function _nabla(ex::Expr, i::Integer = defaultorder[]; mod)
+function _nabla(ex::Expr, i::Integer; mod)
     @assert i ≥ 1
 
     def = splitdef(ex)
@@ -342,7 +340,7 @@ function _nabla(ex::Expr, i::Integer = defaultorder[]; mod)
 
         exfunc = genfunc(genargs...)
         exfrule = genfrule(genargs...)
-        exrrule = genrrule(genargs..., isconjs, indsall; useinplace = i == 1)
+        exrrule = genrrule(genargs..., isconjs, indsall; useinplace = (i == 1))
 
         @eval mod $(macroexpand(TensorOperations, exfunc))
         if i > 1
@@ -366,7 +364,7 @@ function _nabla(ex::Expr, i::Integer = defaultorder[]; mod)
 end
 
 macro ∇(ex)
-    ex, _ = _nabla(ex; mod = @__MODULE__)
+    ex, _ = _nabla(ex, 1; mod = @__MODULE__)
     return ex
 end
 
