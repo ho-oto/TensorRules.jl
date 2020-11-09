@@ -44,7 +44,7 @@ Zygote.refresh()
     @test TensorRules.make_only_product(ex, :j) == :j
 end
 
-# workaround
+# work around for test
 ChainRulesTestUtils.rand_tangent(x::StridedArray{T,0}) where {T} =
     fill(ChainRulesTestUtils.rand_tangent(x[]))
 
@@ -129,6 +129,51 @@ ChainRulesTestUtils.rand_tangent(x::StridedArray{T,0}) where {T} =
 
             rrule_test(_scal, a, (b, Δb), (c, Δc), (d, Δd))
             frule_test(_scal, (b, Δb), (c, Δc), (d, Δd))
+        end
+    end
+
+    @testset "conj" begin
+        _co1 =
+            @fn∇ 1 a(b, c, d) = @tensor a[B, A] := conj(b[A, C]) * conj(c[C, D] * d[B, D])
+        _co2 = @fn∇ 1 a(b, c, d) = @tensor a[B, A] := conj(b[A, C] * c[C, D] * d[B, D])
+        _co3 = @fn∇ 1 a(b, c, d) = @tensor a[B, A] :=
+            conj(1.23 * conj(conj(conj(b[A, C]))) * conj(c[C, D] * d[B, D]))
+
+        for T in (ComplexF64, Float64)
+            a = randn(rng, T, 4, 3)
+            b, Δb = randn(rng, T, 3, 5), randn(rng, T, 3, 5)
+            c, Δc = randn(rng, T, 5, 4), randn(rng, T, 5, 4)
+            d, Δd = randn(rng, T, 4, 4), randn(rng, T, 4, 4)
+            α, Δα = randn(rng, T), randn(rng, T)
+            β, Δβ = randn(rng, T), randn(rng, T)
+
+            rrule_test(_co1, a, (b, Δb), (c, Δc), (d, Δd))
+            rrule_test(_co2, a, (b, Δb), (c, Δc), (d, Δd))
+            #            rrule_test(_co3, a, (b, Δb), (c, Δc), (d, Δd))
+
+            frule_test(_co1, (b, Δb), (c, Δc), (d, Δd))
+            frule_test(_co2, (b, Δb), (c, Δc), (d, Δd))
+            frule_test(_co3, (b, Δb), (c, Δc), (d, Δd))
+        end
+
+        _co4 = @fn∇ 1 a(α, b, c, β, d, e, f) = @tensor a[B, A] :=
+            -α * conj(
+                conj(b[A, C]) * c[C, B] + conj(β) * d[A, C] * (-e[C, B] + 2 * f[C, B]),
+            )
+
+        for T in (ComplexF64, Float64)
+            a = randn(rng, T, 4, 3)
+            b, Δb = randn(rng, T, 3, 5), randn(rng, T, 3, 5)
+            d, Δd = randn(rng, T, 3, 5), randn(rng, T, 3, 5)
+            c, Δc = randn(rng, T, 5, 4), randn(rng, T, 5, 4)
+            e, Δe = randn(rng, T, 5, 4), randn(rng, T, 5, 4)
+            f, Δf = randn(rng, T, 5, 4), randn(rng, T, 5, 4)
+            α, Δα = randn(rng, T), randn(rng, T)
+            β, Δβ = randn(rng, T), randn(rng, T)
+
+            args = ((α, Δα), (b, Δb), (c, Δc), (β, Δβ), (d, Δd), (e, Δe), (f, Δf))
+            rrule_test(_co4, a, args...)
+            frule_test(_co4, args...)
         end
     end
 end
