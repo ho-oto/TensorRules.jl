@@ -122,22 +122,13 @@ function genfrule(
         ṙhs = make_only_product(rhs, arg)
 
         ṙhs = MacroTools.prewalk(ṙhs) do x # assume to match only once
-            if @capture(x, conj($arg[ind__]))
-                :(conj($ȧrg[$(ind...)]))
-            elseif @capture(x, $arg[ind__])
-                :($ȧrg[$(ind...)])
-            elseif @capture(x, $arg)
-                :($ȧrg)
-            else
-                x
-            end
+            @capture(x, $arg) ? ȧrg : x
         end
 
         push!(ȧrgs, ȧrg)
         push!(ṙhss, ṙhs)
     end
-    @assert length(ṙhss) ≥ 1
-    ṙhs = length(ṙhss) == 1 ? ṙhss[1] : Expr(:call, :+, ṙhss...)
+    ṙhs = :(+$(ṙhss...))
 
     @gensym val v̇al
     lhs = isempty(lhsind) ? :($v̇al[]) : :($v̇al[$(lhsind...)])
