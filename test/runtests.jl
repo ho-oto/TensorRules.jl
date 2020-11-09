@@ -5,6 +5,8 @@ using TensorRules
 using Test
 using Zygote
 
+import TensorRules: @fn∇, rhs_to_args, make_only_product
+
 Zygote.refresh()
 
 @testset "RHS parse" begin
@@ -13,7 +15,7 @@ Zygote.refresh()
         α * a[a, a] * K[1, 2, 3][a, a] -
         (((L[a, b] * P.P[b, c]) * (M[c, d] * N[d, e]) * Z[e, f]) * D[f, a]) * π
     end
-    @test TensorRules.rhs_to_args(ex)[2] == [
+    @test rhs_to_args(ex)[2] == [
         :(a[1:end, :][1, 2]),
         :(sin(cos(B))),
         :(C * D + E),
@@ -30,18 +32,16 @@ Zygote.refresh()
     ]
 
     ex = :(-a * (-b + (c + d) + (-e) - f - (g * h)) * i + j)
-    @test TensorRules.make_only_product(ex, :a) ==
-          :(-a * (-b + (c + d) + (-e) - f - (g * h)) * i)
-    @test TensorRules.make_only_product(ex, :b) == :(-a * -b * i)
-    @test TensorRules.make_only_product(ex, :c) == :(-a * c * i)
-    @test TensorRules.make_only_product(ex, :d) == :(-a * d * i)
-    @test TensorRules.make_only_product(ex, :e) == :(-a * -e * i)
-    @test TensorRules.make_only_product(ex, :f) == :(-a * -f * i)
-    @test TensorRules.make_only_product(ex, :g) == :(-a * -(g * h) * i)
-    @test TensorRules.make_only_product(ex, :h) == :(-a * -(g * h) * i)
-    @test TensorRules.make_only_product(ex, :i) ==
-          :(-a * (-b + (c + d) + (-e) - f - (g * h)) * i)
-    @test TensorRules.make_only_product(ex, :j) == :j
+    @test make_only_product(ex, :a) == :(-a * (-b + (c + d) + (-e) - f - (g * h)) * i)
+    @test make_only_product(ex, :b) == :(-a * -b * i)
+    @test make_only_product(ex, :c) == :(-a * c * i)
+    @test make_only_product(ex, :d) == :(-a * d * i)
+    @test make_only_product(ex, :e) == :(-a * -e * i)
+    @test make_only_product(ex, :f) == :(-a * -f * i)
+    @test make_only_product(ex, :g) == :(-a * -(g * h) * i)
+    @test make_only_product(ex, :h) == :(-a * -(g * h) * i)
+    @test make_only_product(ex, :i) == :(-a * (-b + (c + d) + (-e) - f - (g * h)) * i)
+    @test make_only_product(ex, :j) == :j
 end
 
 # work around for test

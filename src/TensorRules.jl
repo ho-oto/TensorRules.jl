@@ -9,7 +9,7 @@ export rrule, frule, NO_FIELDS, Zero, Thunk, InplaceableThunk
 export I
 export @tensor, @tensoropt
 
-export @∇, @fn∇
+export @∇
 
 function rhs_to_args(ex::Expr)
     indsall = Union{Symbol,Expr}[]
