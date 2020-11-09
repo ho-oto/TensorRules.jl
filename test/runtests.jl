@@ -53,31 +53,51 @@ ChainRulesTestUtils.rand_tangent(x::StridedArray{T,0}) where {T} =
 
     @testset "einsum" begin
         _esum = @fn∇ 1 a(b, c, d) = @tensor a[B, A] := conj(b[A, C]) * c[C, D] * d[B, D]
-        _opt1 = @fn∇ 1 a(b, c, d) =
-            @tensoropt (A => 1, C => χ) a[B, A] := b[A, C] * c[C, D] * d[B, D]
-        _opt2 =
-            @fn∇ 1 a(b, c, d) = @tensoropt !(A, C) a[B, A] := b[A, C] * c[C, D] * d[B, D]
-        _opt3 = @fn∇ 1 a(b, c, d) = @tensoropt (A, C) a[B, A] := b[A, C] * c[C, D] * d[B, D]
-        _scar = @fn∇ 1 a(α, b, c) = @tensor a[B, A] := α * conj(b[A, C]) * c[C, B]
 
         for T in (ComplexF64, Float64)
             a = randn(rng, T, 4, 3)
             b, Δb = randn(rng, T, 3, 5), randn(rng, T, 3, 5)
             c, Δc = randn(rng, T, 5, 4), randn(rng, T, 5, 4)
             d, Δd = randn(rng, T, 4, 4), randn(rng, T, 4, 4)
-            α, Δα = randn(rng, T), randn(rng, T)
-            β, Δβ = randn(rng, T), randn(rng, T)
 
             rrule_test(_esum, a, (b, Δb), (c, Δc), (d, Δd))
+            frule_test(_esum, (b, Δb), (c, Δc), (d, Δd))
+        end
+    end
+
+    @testset "tensoropt" begin
+        _opt1 = @fn∇ 1 a(b, c, d) =
+            @tensoropt (A => 1, C => χ) a[B, A] := b[A, C] * c[C, D] * d[B, D]
+        _opt2 =
+            @fn∇ 1 a(b, c, d) = @tensoropt !(A, C) a[B, A] := b[A, C] * c[C, D] * d[B, D]
+        _opt3 = @fn∇ 1 a(b, c, d) = @tensoropt (A, C) a[B, A] := b[A, C] * c[C, D] * d[B, D]
+
+        for T in (ComplexF64, Float64)
+            a = randn(rng, T, 4, 3)
+            b, Δb = randn(rng, T, 3, 5), randn(rng, T, 3, 5)
+            c, Δc = randn(rng, T, 5, 4), randn(rng, T, 5, 4)
+            d, Δd = randn(rng, T, 4, 4), randn(rng, T, 4, 4)
+
             rrule_test(_opt1, a, (b, Δb), (c, Δc), (d, Δd))
             rrule_test(_opt2, a, (b, Δb), (c, Δc), (d, Δd))
             rrule_test(_opt3, a, (b, Δb), (c, Δc), (d, Δd))
-            rrule_test(_scar, a, (α, Δα), (b, Δb), (c, Δc))
 
-            frule_test(_esum, (b, Δb), (c, Δc), (d, Δd))
             frule_test(_opt1, (b, Δb), (c, Δc), (d, Δd))
             frule_test(_opt2, (b, Δb), (c, Δc), (d, Δd))
             frule_test(_opt3, (b, Δb), (c, Δc), (d, Δd))
+        end
+    end
+
+    @testset "scalar in rhs" begin
+        _scar = @fn∇ 1 a(α, b, c) = @tensor a[B, A] := α * conj(b[A, C]) * c[C, B]
+
+        for T in (ComplexF64, Float64)
+            a = randn(rng, T, 4, 3)
+            b, Δb = randn(rng, T, 3, 5), randn(rng, T, 3, 5)
+            c, Δc = randn(rng, T, 5, 4), randn(rng, T, 5, 4)
+            α, Δα = randn(rng, T), randn(rng, T)
+
+            rrule_test(_scar, a, (α, Δα), (b, Δb), (c, Δc))
             frule_test(_scar, (α, Δα), (b, Δb), (c, Δc))
         end
     end
