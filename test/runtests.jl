@@ -49,81 +49,87 @@ ChainRulesTestUtils.rand_tangent(x::StridedArray{T,0}) where {T} =
     fill(ChainRulesTestUtils.rand_tangent(x[]))
 
 @testset "rules" begin
-    _esum = @fn∇ 1 a(b, c, d) = @tensor a[B, A] := conj(b[A, C]) * c[C, D] * d[B, D]
-    _opt1 = @fn∇ 1 a(b, c, d) =
-        @tensoropt (A => 1, C => χ) a[B, A] := b[A, C] * c[C, D] * d[B, D]
-    _opt2 = @fn∇ 1 a(b, c, d) = @tensoropt !(A, C) a[B, A] := b[A, C] * c[C, D] * d[B, D]
-    _opt3 = @fn∇ 1 a(b, c, d) = @tensoropt (A, C) a[B, A] := b[A, C] * c[C, D] * d[B, D]
-    _scar = @fn∇ 1 a(α, b, c) = @tensor a[B, A] := α * conj(b[A, C]) * c[C, B]
-    _add = @fn∇ 1 a(α, b, c, β, bb, cc, ccc) = @tensor a[B, A] :=
-        -α * conj(b[A, C]) * c[C, B] + β * bb[A, C] * (-cc[C, B] + 2 * ccc[C, B])
-    _tr1 = @fn∇ 1 a(b, c) = @tensor a[C] := b[A, B, B', B', B] * c[A, A', A', C]
-    _tr2 = @fn∇ 1 a(b, c) = @tensor a[c] := b[a, b, bb, bb, b] * c[a, aa, aa, c]
-    _scal = @fn∇ 1 a(b, c, d) = @tensor a[] := b[A, B] * c[B, C] * d[C, A]
-
     rng = MersenneTwister(1234321)
 
-    for T in (ComplexF64, Float64)
-        a = randn(rng, T, 4, 3)
-        b1, Δb1 = randn(rng, T, 3, 5), randn(rng, T, 3, 5)
-        b2, Δb2 = randn(rng, T, 3, 5), randn(rng, T, 3, 5)
-        c1, Δc1 = randn(rng, T, 5, 4), randn(rng, T, 5, 4)
-        c2, Δc2 = randn(rng, T, 5, 4), randn(rng, T, 5, 4)
-        c3, Δc3 = randn(rng, T, 5, 4), randn(rng, T, 5, 4)
-        d, Δd = randn(rng, T, 4, 4), randn(rng, T, 4, 4)
-        α, Δα = randn(rng, T), randn(rng, T)
-        β, Δβ = randn(rng, T), randn(rng, T)
+    @testset "einsum" begin
+        _esum = @fn∇ 1 a(b, c, d) = @tensor a[B, A] := conj(b[A, C]) * c[C, D] * d[B, D]
+        _opt1 = @fn∇ 1 a(b, c, d) =
+            @tensoropt (A => 1, C => χ) a[B, A] := b[A, C] * c[C, D] * d[B, D]
+        _opt2 =
+            @fn∇ 1 a(b, c, d) = @tensoropt !(A, C) a[B, A] := b[A, C] * c[C, D] * d[B, D]
+        _opt3 = @fn∇ 1 a(b, c, d) = @tensoropt (A, C) a[B, A] := b[A, C] * c[C, D] * d[B, D]
+        _scar = @fn∇ 1 a(α, b, c) = @tensor a[B, A] := α * conj(b[A, C]) * c[C, B]
 
+        for T in (ComplexF64, Float64)
+            a = randn(rng, T, 4, 3)
+            b, Δb = randn(rng, T, 3, 5), randn(rng, T, 3, 5)
+            c, Δc = randn(rng, T, 5, 4), randn(rng, T, 5, 4)
+            d, Δd = randn(rng, T, 4, 4), randn(rng, T, 4, 4)
+            α, Δα = randn(rng, T), randn(rng, T)
+            β, Δβ = randn(rng, T), randn(rng, T)
 
-        rrule_test(_esum, a, (b1, Δb1), (c1, Δc1), (d, Δd))
-        rrule_test(_opt1, a, (b1, Δb1), (c1, Δc1), (d, Δd))
-        rrule_test(_opt2, a, (b1, Δb1), (c1, Δc1), (d, Δd))
-        rrule_test(_opt3, a, (b1, Δb1), (c1, Δc1), (d, Δd))
-        rrule_test(_scar, a, (α, Δα), (b1, Δb1), (c1, Δc1))
-        rrule_test(
-            _add,
-            a,
-            (α, Δα),
-            (b1, Δb1),
-            (c1, Δc1),
-            (β, Δβ),
-            (b2, Δb2),
-            (c2, Δc2),
-            (c3, Δc3),
-        )
+            rrule_test(_esum, a, (b, Δb), (c, Δc), (d, Δd))
+            rrule_test(_opt1, a, (b, Δb), (c, Δc), (d, Δd))
+            rrule_test(_opt2, a, (b, Δb), (c, Δc), (d, Δd))
+            rrule_test(_opt3, a, (b, Δb), (c, Δc), (d, Δd))
+            rrule_test(_scar, a, (α, Δα), (b, Δb), (c, Δc))
 
-        frule_test(_esum, (b1, Δb1), (c1, Δc1), (d, Δd))
-        frule_test(_opt1, (b1, Δb1), (c1, Δc1), (d, Δd))
-        frule_test(_opt2, (b1, Δb1), (c1, Δc1), (d, Δd))
-        frule_test(_opt3, (b1, Δb1), (c1, Δc1), (d, Δd))
-        frule_test(_scar, (α, Δα), (b1, Δb1), (c1, Δc1))
-        frule_test(
-            _add,
-            (α, Δα),
-            (b1, Δb1),
-            (c1, Δc1),
-            (β, Δβ),
-            (b2, Δb2),
-            (c2, Δc2),
-            (c3, Δc3),
-        )
+            frule_test(_esum, (b, Δb), (c, Δc), (d, Δd))
+            frule_test(_opt1, (b, Δb), (c, Δc), (d, Δd))
+            frule_test(_opt2, (b, Δb), (c, Δc), (d, Δd))
+            frule_test(_opt3, (b, Δb), (c, Δc), (d, Δd))
+            frule_test(_scar, (α, Δα), (b, Δb), (c, Δc))
+        end
+    end
 
-        a = randn(rng, T, 2)
-        b, Δb = randn(rng, T, 3, 2, 3, 3, 2), randn(rng, T, 3, 2, 3, 3, 2)
-        c, Δc = randn(rng, T, 3, 3, 3, 2), randn(rng, T, 3, 3, 3, 2)
+    @testset "add" begin
+        _add = @fn∇ 1 a(α, b, c, β, d, e, f) = @tensor a[B, A] :=
+            -α * conj(b[A, C]) * c[C, B] + conj(β) * d[A, C] * (-e[C, B] + 2 * f[C, B])
 
-        rrule_test(_tr1, a, (b, Δb), (c, Δc))
-        rrule_test(_tr2, a, (b, Δb), (c, Δc))
-        frule_test(_tr1, (b, Δb), (c, Δc))
-        frule_test(_tr2, (b, Δb), (c, Δc))
+        for T in (ComplexF64, Float64)
+            a = randn(rng, T, 4, 3)
+            b, Δb = randn(rng, T, 3, 5), randn(rng, T, 3, 5)
+            d, Δd = randn(rng, T, 3, 5), randn(rng, T, 3, 5)
+            c, Δc = randn(rng, T, 5, 4), randn(rng, T, 5, 4)
+            e, Δe = randn(rng, T, 5, 4), randn(rng, T, 5, 4)
+            f, Δf = randn(rng, T, 5, 4), randn(rng, T, 5, 4)
+            α, Δα = randn(rng, T), randn(rng, T)
+            β, Δβ = randn(rng, T), randn(rng, T)
 
-        a = randn(rng, T, 1)
-        b, Δb = randn(rng, T, 3, 2), randn(rng, T, 3, 2)
-        c, Δc = randn(rng, T, 2, 4), randn(rng, T, 2, 4)
-        d, Δd = randn(rng, T, 4, 3), randn(rng, T, 4, 3)
+            args = ((α, Δα), (b, Δb), (c, Δc), (β, Δβ), (d, Δd), (e, Δe), (f, Δf))
+            rrule_test(_add, a, args...)
+            frule_test(_add, args...)
+        end
+    end
 
-        rrule_test(_scal, a, (b, Δb), (c, Δc), (d, Δd))
-        frule_test(_scal, (b, Δb), (c, Δc), (d, Δd))
+    @testset "trace" begin
+        _tr1 = @fn∇ 1 a(b, c) = @tensor a[C] := b[A, B, B', B', B] * c[A, A', A', C]
+        _tr2 = @fn∇ 1 a(b, c) = @tensor a[c] := b[a, b, bb, bb, b] * c[a, aa, aa, c]
+
+        for T in (ComplexF64, Float64)
+            a = randn(rng, T, 2)
+            b, Δb = randn(rng, T, 3, 2, 3, 3, 2), randn(rng, T, 3, 2, 3, 3, 2)
+            c, Δc = randn(rng, T, 3, 3, 3, 2), randn(rng, T, 3, 3, 3, 2)
+
+            rrule_test(_tr1, a, (b, Δb), (c, Δc))
+            rrule_test(_tr2, a, (b, Δb), (c, Δc))
+            frule_test(_tr1, (b, Δb), (c, Δc))
+            frule_test(_tr2, (b, Δb), (c, Δc))
+        end
+    end
+
+    @testset "lhs is scalar" begin
+        _scal = @fn∇ 1 a(b, c, d) = @tensor a[] := b[A, B] * c[B, C] * d[C, A]
+
+        for T in (ComplexF64, Float64)
+            a = randn(rng, T, 1)
+            b, Δb = randn(rng, T, 3, 2), randn(rng, T, 3, 2)
+            c, Δc = randn(rng, T, 2, 4), randn(rng, T, 2, 4)
+            d, Δd = randn(rng, T, 4, 3), randn(rng, T, 4, 3)
+
+            rrule_test(_scal, a, (b, Δb), (c, Δc), (d, Δd))
+            frule_test(_scal, (b, Δb), (c, Δc), (d, Δd))
+        end
     end
 end
 
