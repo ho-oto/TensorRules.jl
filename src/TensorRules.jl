@@ -374,7 +374,7 @@ macro ∇(i::Integer, ex)
 end
 
 macro fn∇(i, ex)
-    _, fn = _nabla(ex; mod = @__MODULE__)
+    _, fn = _nabla(ex, 1; mod = @__MODULE__)
     return fn[i]
 end
 
