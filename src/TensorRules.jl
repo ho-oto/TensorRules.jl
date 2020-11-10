@@ -227,7 +227,7 @@ function genrrule(
                     push!(indtr, j)
                     push!(
                         δs,
-                        :($Array{eltype($arg)}(I, size($arg, $k), size($arg, $k))[$i, $j]),
+                        :(Array{eltype($arg)}(I, size($arg, $k), size($arg, $k))[$i, $j]),
                     )
                 end
             end

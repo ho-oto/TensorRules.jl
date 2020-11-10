@@ -179,7 +179,7 @@ ChainRulesTestUtils.rand_tangent(x::StridedArray{T,0}) where {T} =
 
             rrule_test(_co1, a, (b, Δb), (c, Δc), (d, Δd))
             rrule_test(_co2, a, (b, Δb), (c, Δc), (d, Δd))
-            #            rrule_test(_co3, a, (b, Δb), (c, Δc), (d, Δd))
+            rrule_test(_co3, a, (b, Δb), (c, Δc), (d, Δd))
 
             frule_test(_co1, (b, Δb), (c, Δc), (d, Δd))
             frule_test(_co2, (b, Δb), (c, Δc), (d, Δd))
