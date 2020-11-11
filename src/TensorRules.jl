@@ -15,7 +15,7 @@ function rhs_to_args(ex::Expr)
     indsall = Union{Symbol,Expr}[]
     symorig, symgend, isconjs = Union{Symbol,Expr}[], Symbol[], Bool[]
 
-    exparse(x, isconj) =
+    function exparse(x, isconj)
         if x isa Number
             x
         elseif @capture(x, -(rhs__))
@@ -45,6 +45,7 @@ function rhs_to_args(ex::Expr)
             push!(isconjs, isconj)
             new
         end
+    end
 
     exreplaced = exparse(ex, false)
     return exreplaced, symorig, symgend, isconjs, indsall
@@ -115,11 +116,7 @@ function make_scalar_first(ex::Expr)
 end
 
 function genfunc(
-    funcname::Symbol,
-    args::Vector{Symbol},
-    lhsind::Vector{Any},
-    rhs::Expr,
-    opt::Ref{Expr},
+    funcname::Symbol, args::Vector{Symbol}, lhsind::Vector{Any}, rhs::Expr, opt::Ref{Expr}
 )
     ex = if isempty(lhsind)
         :($funcname[] := $rhs)
@@ -135,18 +132,14 @@ function genfunc(
 end
 
 function genfrule(
-    funcname::Symbol,
-    args::Vector{Symbol},
-    lhsind::Vector{Any},
-    rhs::Expr,
-    opt::Ref{Expr},
+    funcname::Symbol, args::Vector{Symbol}, lhsind::Vector{Any}, rhs::Expr, opt::Ref{Expr}
 )
     ȧrgs, ṙhss = Symbol[], Expr[]
     for arg in args
         @gensym ȧrg
         ṙhs = make_scalar_first(make_only_product(rhs, arg))
 
-        ṙhs = MacroTools.prewalk(ṙhs) do x # assume to match only once
+        ṙhs = MacroTools.prewalk(ṙhs) do x  # assume to match only once
             @capture(x, $arg) ? ȧrg : x
         end
 
@@ -198,7 +191,7 @@ function genrrule(
         rhsarg = make_scalar_first(make_only_product(rhs, arg))
 
         ind = Ref{Vector{Any}}()
-        ∂exrhs = MacroTools.prewalk(rhsarg) do x # assume to match only once
+        ∂exrhs = MacroTools.prewalk(rhsarg) do x  # assume to match only once
             if @capture(x, $arg[_ind__])
                 ind[] = _ind
                 isconj ? Δlhs : :(conj($Δlhs))
@@ -340,7 +333,7 @@ function _nabla(ex::Expr, i::Integer; mod)
 
         exfunc = genfunc(genargs...)
         exfrule = genfrule(genargs...)
-        exrrule = genrrule(genargs..., isconjs, indsall; useinplace = (i == 1))
+        exrrule = genrrule(genargs..., isconjs, indsall; useinplace=(i == 1))
 
         @eval mod $(macroexpand(TensorOperations, exfunc))
         if i > 1
@@ -353,9 +346,9 @@ function _nabla(ex::Expr, i::Integer; mod)
 
         if which == :assign
             return :($lhs = $(Core.eval(mod, symfunc))($(argsorig...)))
-        elseif which == :pluseq # use x += y instead of x .+= y for Zygote
+        elseif which == :pluseq  # use x += y instead of x .+= y for Zygote
             return :($lhs += $(Core.eval(mod, symfunc))($(argsorig...)))
-        elseif which == :subteq # use x -= y instead of x .-= y for Zygote
+        elseif which == :subteq  # use x -= y instead of x .-= y for Zygote
             return :($lhs -= $(Core.eval(mod, symfunc))($(argsorig...)))
         end
     end
@@ -364,17 +357,17 @@ function _nabla(ex::Expr, i::Integer; mod)
 end
 
 macro ∇(ex)
-    ex, _ = _nabla(ex, 1; mod = @__MODULE__)
+    ex, _ = _nabla(ex, 1; mod=@__MODULE__)
     return ex
 end
 
 macro ∇(i::Integer, ex)
-    ex, _ = _nabla(ex, i; mod = @__MODULE__)
+    ex, _ = _nabla(ex, i; mod=@__MODULE__)
     return ex
 end
 
 macro fn∇(i, ex)
-    _, fn = _nabla(ex, 1; mod = @__MODULE__)
+    _, fn = _nabla(ex, 1; mod=@__MODULE__)
     return fn[i]
 end
 

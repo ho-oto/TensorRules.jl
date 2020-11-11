@@ -1,6 +1,7 @@
 # TensorRules.jl
 
 [![Build Status](https://github.com/ho-oto/TensorRules.jl/workflows/CI/badge.svg)](https://github.com/ho-oto/TensorRules.jl/actions)
+[![Code Style: Blue](https://img.shields.io/badge/code%20style-blue-4495d1.svg)](https://github.com/invenia/BlueStyle)
 
 `TensorRules.jl` provides a macro `@∇` (you can type `∇` by `\nabla<tab>`), which
 enable us to use automatic differentiation (AD) libraries (e.g.,
