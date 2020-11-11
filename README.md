@@ -42,40 +42,43 @@ function foo(a, b, c, d, e, f)
     return x
 end
 
-@inline _foo_1(x1, x2, x3, x4, x5) = @tensoropt !C _[A, B] := conj(x1[A, C]) * x2[C, D] * x3[D, B] + x4 * x5[A, B]
+@inline _foo_1(x1, x2, x3, x4, x5) =
+    @tensoropt !C _[A, B] := conj(x1[A, C]) * x2[C, D] * x3[D, B] + x4 * x5[A, B]
+
+@inline _foo_2(x1, x2) = @tensor _[A, B] := x1[A, C] * x2[C, B]
 
 function rrule(::typeof(_foo_1), x1, x2, x3, x4, x5)
     f = _foo_1(x1, x2, x3, x4, x5)
     function _foo_1_pullback(Δf)
-        @tensoropt !C Δx1[A, C] := conj(Δf[A, B]) * x2[C, D] * x3[D, B]
-        @tensoropt !C Δx2[C, D] := conj(x1[A, C]) * conj(Δf[A, B]) * x3[D, B]
-        Δx2 = conj(Δx2)
-        @tensoropt !C Δx3[D, B] := conj(x1[A, C]) * x2[C, D] * conj(Δf[A, B])
-        Δx3 = conj(Δx3)
-        @tensoropt !C Δx4[] := conj(Δf[A, B]) * x5[A, B]
-        Δx4 = first(Δx4)
-        Δx4 = conj(Δx4)
-        @tensoropt !C Δx5[A, B] := x4 * conj(Δf[A, B])
-        Δx5 = conj(Δx5)
+        Δx1 = InplaceableThunk(
+            Thunk(() -> @tensoropt !C Δx1[A, C] := conj(Δf[A, B]) * x2[C, D] * x3[D, B]),
+            Δx1 -> @tensoropt !C Δx1[A, C] += conj(Δf[A, B]) * x2[C, D] * x3[D, B]
+        )
+        Δx2 = InplaceableThunk(
+            Thunk(() -> @tensoropt !C Δx2[C, D] := conj(conj(x1[A, C]) * conj(Δf[A, B]) * x3[D, B])),
+            Δx2 -> @tensoropt !C Δx2[C, D] += conj(conj(x1[A, C]) * conj(Δf[A, B]) * x3[D, B])
+        )
+        Δx3 = InplaceableThunk(
+            Thunk(() -> @tensoropt !C Δx3[D, B] := conj(conj(x1[A, C]) * x2[C, D] * conj(Δf[A, B]))),
+            Δx3 -> @tensoropt !C Δx3[D, B] += conj(conj(x1[A, C]) * x2[C, D] * conj(Δf[A, B]))
+        )
+        Δx4 = Thunk(() -> first(@tensoropt !C Δx4[] := conj(conj(Δf[A, B]) * x5[A, B])))
+        Δx5 = InplaceableThunk(
+            Thunk(() -> @tensoropt !C Δx5[A, B] := conj(x4 * conj(Δf[A, B]))),
+            Δx5 -> @tensoropt !C Δx5[A, B] := conj(x4 * conj(Δf[A, B]))
+        )
         return (NO_FIELDS, Δx1, Δx2, Δx3, Δx4, Δx5)
     end
     return f, _foo_1_pullback
 end
 
-@inline _foo_2(x1, x2) = @tensor _[A, B] := x1[A, C] * x2[C, B]
-
 function rrule(::typeof(_foo_2), x1, x2)
-    f = _foo_2(x1, x2)
-    function _foo_2_pullback(Δf)
-        @tensor Δx1[A, C] := conj(Δf[A, B]) * x2[C, B]
-        Δx1 = conj(Δx1)
-        @tensor Δx2[C, B] := x1[A, C] * conj(Δf[A, B])
-        Δx2 = conj(Δx2)
-        return (NO_FIELDS, Δx1, Δx2)
-    end
-    return f, _foo_2_pullback
+    ...
 end
 ```
+
+By using `Thunk` and `InplaceableThunk` properly, adjoints will be evaluated only
+if they are needed.
 
 ## unsupported features
 
