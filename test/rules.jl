@@ -155,4 +155,61 @@
             frule_test(_co4, args...)
         end
     end
+
+    @testset "more" begin
+        T = ComplexF64
+
+        _tn1 = @fn∇ 1 function a(x, ar, H)
+            return @tensoropt !(p, p1, p2) l[l, p, r] :=
+                x[l, p1, X] * ar[X, p2, Y] * conj(ar[r, p2', Y]) * H[p, p2', p1, p2]
+        end
+        _tn2 = @fn∇ 1 function a(x, al, H)
+            return @tensoropt !(p, p1, p2) r[l, p, r] :=
+                conj(al[X, p1', l]) * al[X, p1, Y] * x[Y, p2, r] * H[p1', p, p1, p2]
+        end
+
+        a1, Δa1 = randn(rng, T, 3, 2, 3), randn(rng, T, 3, 2, 3)
+        a2, Δa2 = randn(rng, T, 3, 2, 3), randn(rng, T, 3, 2, 3)
+        x, Δx = randn(rng, T, 3, 2, 3), randn(rng, T, 3, 2, 3)
+        H, ΔH = randn(rng, T, 2, 2, 2, 2), randn(rng, T, 2, 2, 2, 2)
+        r = randn(rng, T, 3, 2, 3)
+
+        rrule_test(_tn1, r, (x, Δx), (a1, Δa1), (a2, Δa2), (H, ΔH))
+        frule_test(_tn1, (x, Δx), (a1, Δa1), (a2, Δa2), (H, ΔH))
+        rrule_test(_tn2, r, (a1, Δa1), (a2, Δa2), (x, Δx), (H, ΔH))
+        frule_test(_tn2, (a1, Δa1), (a2, Δa2), (x, Δx), (H, ΔH))
+
+        _tn3 = @fn∇ 1 function a(λ, o, a, b=a)
+            return @tensoropt !(p1, p2) _[l, r] :=
+                λ *
+                conj(b[1][X, p1', Y']) *
+                conj(b[2][Y', p2', l]) *
+                a[1][X, p1, Y] *
+                a[2][Y, p2, r] *
+                o[p1', p2', p1, p2]
+        end
+        _tn4 = @fn∇ 1 function a(x, o, a, b=a)
+            return @tensoropt !(p1, p2) _[l, r] :=
+                a[1][l, p1, X] *
+                a[2][X, p2, Y] *
+                x[Y, Y'] *
+                conj(b[1][r, p1', X']) *
+                conj(b[2][X', p2', Y']) *
+                o[p1', p2', p1, p2]
+        end
+
+        a1, Δa1 = randn(rng, T, 3, 2, 3), randn(rng, T, 3, 2, 3)
+        a2, Δa2 = randn(rng, T, 3, 2, 3), randn(rng, T, 3, 2, 3)
+        b1, Δb1 = randn(rng, T, 3, 2, 3), randn(rng, T, 3, 2, 3)
+        b2, Δb2 = randn(rng, T, 3, 2, 3), randn(rng, T, 3, 2, 3)
+        x, Δx = randn(rng, T, 3, 3), randn(rng, T, 3, 3)
+        λ, Δλ = randn(rng, T), randn(rng, T)
+        H, ΔH = randn(rng, T, 2, 2, 2, 2), randn(rng, T, 2, 2, 2, 2)
+        r = randn(rng, T, 3, 3)
+
+        rrule_test(_tn3, r, (λ, Δλ), (b1, Δb1), (b2, Δb2), (a1, Δa1), (a2, Δa2), (H, ΔH))
+        frule_test(_tn3, (λ, Δλ), (b1, Δb1), (b2, Δb2), (a1, Δa1), (a2, Δa2), (H, ΔH))
+        rrule_test(_tn4, r, (a1, Δa1), (a2, Δa2), (x, Δx), (b1, Δb1), (b2, Δb2), (H, ΔH))
+        frule_test(_tn4, (a1, Δa1), (a2, Δa2), (x, Δx), (b1, Δb1), (b2, Δb2), (H, ΔH))
+    end
 end
