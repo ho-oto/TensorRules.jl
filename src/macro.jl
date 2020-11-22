@@ -71,7 +71,7 @@ function _nabla(ex::Expr, i::Integer; mod)
 end
 
 macro ∇(ex)
-    ex, _ = _nabla(ex, 1; mod=@__MODULE__)
+    ex, _ = _nabla(ex, defaultdifforder[]; mod=@__MODULE__)
     return ex
 end
 
@@ -81,6 +81,6 @@ macro ∇(i::Integer, ex)
 end
 
 macro fn∇(i, ex)
-    _, fn = _nabla(ex, 1; mod=@__MODULE__)
+    _, fn = _nabla(ex, defaultdifforder[]; mod=@__MODULE__)
     return fn[i]
 end
