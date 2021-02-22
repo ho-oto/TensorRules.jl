@@ -12,6 +12,27 @@ with `@tensor` and `@tensoropt` macros in [`TensorOperations.jl`](https://github
 `TensorRules.jl` uses [`ChainRulesCore.jl`](https://github.com/JuliaDiff/ChainRulesCore.jl) to define custom adjoints.
 So, you can use any AD libraries which supports `ChainRulesCore.jl`.
 
+## How to use
+
+```julia
+julia> using TensorOperations, TensorRules, Zygote;
+julia> function foo(a, b, c) # define function with Einstein summation
+           # d_F = \sum_{A,B,C,D} a_{A,B,C} b_{C,D,E,F} c_{A,B,D,E}
+           @tensor d[F] := a[A, B, C] * b[C, D, E, F] * c[A, B, D, E]
+           return d[1]
+       end;
+julia> a, b, c = randn(3, 4, 5), randn(5, 6, 7, 8), randn(3, 4, 6, 7);
+julia> gradient(foo, a, b, c); # try to obtain gradient of `foo` by Zygote
+ERROR: this intrinsic must be compiled to be called
+Stacktrace:
+...
+julia> @∇ function foo(a, b, c) # use @∇
+           @tensor d[F] := a[A, B, C] * b[C, D, E, F] * c[A, B, D, E]
+           return d[1]
+       end;
+julia> gradient(foo, a, b, c); # it works!
+```
+
 ## How it works
 
 The strategy of `TensorRules.jl` are very similar to [`TensorGrad.jl`](https://github.com/mcabbott/TensorGrad.jl).
