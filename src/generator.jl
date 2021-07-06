@@ -153,15 +153,15 @@ function genrrule(
         :block,
         :($Δlhssym = Array($Δlhssym)),
         ∂exargs...,
-        :(return (NO_FIELDS, $(∂args...))),
+        :(return (NoTangent(), $(∂args...))),
     )
-    zerobody = :((NO_FIELDS, $(fill(Zero(), length(∂args))...)))
+    zerobody = :((NoTangent(), $(fill(ZeroTangent(), length(∂args))...)))
 
     return quote
         function ChainRulesCore.rrule(::typeof($funcname), $(args...))
             $valforw = $(funcname)($(args...))
             $(funcback)($Δlhssym) = $backbody
-            $(funcback)(::Zero) = $zerobody
+            $(funcback)(::AbstractZero) = $zerobody
             return ($valforw, $funcback)
         end
     end
