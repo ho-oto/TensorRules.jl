@@ -72,23 +72,31 @@ function rrule(::typeof(_foo_1), x1, x2, x3, x4, x5)
     f = _foo_1(x1, x2, x3, x4, x5)
     function _foo_1_pullback(Δf)
         Δx1 = InplaceableThunk(
-            Thunk(() -> @tensoropt !C Δx1[A, C] := conj(Δf[A, B]) * x2[C, D] * x3[D, B]),
+            Thunk(
+                () -> @tensoropt !C Δx1[A, C] := conj(Δf[A, B]) * x2[C, D] * x3[D, B]
+            ),
             Δx1 -> @tensoropt !C Δx1[A, C] += conj(Δf[A, B]) * x2[C, D] * x3[D, B]
         )
         Δx2 = InplaceableThunk(
-            Thunk(() -> @tensoropt !C Δx2[C, D] := conj(conj(x1[A, C]) * conj(Δf[A, B]) * x3[D, B])),
+            Thunk(
+                () -> @tensoropt !C Δx2[C, D] := conj(conj(x1[A, C]) * conj(Δf[A, B]) * x3[D, B])
+            ),
             Δx2 -> @tensoropt !C Δx2[C, D] += conj(conj(x1[A, C]) * conj(Δf[A, B]) * x3[D, B])
         )
         Δx3 = InplaceableThunk(
-            Thunk(() -> @tensoropt !C Δx3[D, B] := conj(conj(x1[A, C]) * x2[C, D] * conj(Δf[A, B]))),
+            Thunk(
+                () -> @tensoropt !C Δx3[D, B] := conj(conj(x1[A, C]) * x2[C, D] * conj(Δf[A, B]))
+            ),
             Δx3 -> @tensoropt !C Δx3[D, B] += conj(conj(x1[A, C]) * x2[C, D] * conj(Δf[A, B]))
         )
         Δx4 = Thunk(() -> first(@tensoropt !C Δx4[] := conj(conj(Δf[A, B]) * x5[A, B])))
         Δx5 = InplaceableThunk(
-            Thunk(() -> @tensoropt !C Δx5[A, B] := conj(x4 * conj(Δf[A, B]))),
-            Δx5 -> @tensoropt !C Δx5[A, B] := conj(x4 * conj(Δf[A, B]))
+            Thunk(
+                () -> @tensoropt !C Δx5[A, B] := conj(x4 * conj(Δf[A, B]))
+            ),
+            Δx5 -> @tensoropt !C Δx5[A, B] += conj(x4 * conj(Δf[A, B]))
         )
-        return (NO_FIELDS, Δx1, Δx2, Δx3, Δx4, Δx5)
+        return (NoTangent(), Δx1, Δx2, Δx3, Δx4, Δx5)
     end
     return f, _foo_1_pullback
 end
