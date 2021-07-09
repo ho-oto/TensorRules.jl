@@ -7,6 +7,8 @@ using Zygote
 
 import TensorRules: @fn∇, rhs_to_args, make_only_product
 
+Random.seed!(42)
+
 Zygote.refresh()
 
 # work around for test
