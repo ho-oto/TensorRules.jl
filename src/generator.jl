@@ -161,7 +161,6 @@ function genrrule(
         function ChainRulesCore.rrule(::typeof($funcname), $(args...))
             $valforw = $(funcname)($(args...))
             $(funcback)($Δlhssym) = $backbody
-            $(funcback)(::AbstractZero) = $zerobody
             return ($valforw, $funcback)
         end
     end
