@@ -11,11 +11,6 @@ Random.seed!(42)
 
 Zygote.refresh()
 
-# work around for test
-function ChainRulesTestUtils.rand_tangent(x::StridedArray{T,0}) where {T}
-    return fill(ChainRulesTestUtils.rand_tangent(x[]))
-end
-
 @testset "TensorRules" begin
     include("rhsparse.jl")
     include("rules.jl")
