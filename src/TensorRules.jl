@@ -5,7 +5,7 @@ using LinearAlgebra
 using MacroTools
 using TensorOperations
 
-export rrule, frule, NO_FIELDS, Zero, Thunk, InplaceableThunk
+export rrule, frule, NoTangent, Zero, Thunk, InplaceableThunk
 export I
 export @tensor, @tensoropt
 
