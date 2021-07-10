@@ -73,15 +73,31 @@ function rrule(::typeof(_foo_1), x1, x2, x3, x4, x5)
     Px1, Px2, Px3, Px4, Px5 = ProjectTo(x1), ProjectTo(x2), ProjectTo(x3), ProjectTo(x4), ProjectTo(x5)
     function _foo_1_pullback(Δf)
         fnΔx1(Δf, x1, x2, x3, x4, x5) = @tensoropt !C _[A, C] := conj(Δf[A, B]) * x2[C, D] * x3[D, B]
+        fnΔx1add!!(x, Δf, x1, x2, x3, x4, x5) = @tensoropt !C x[A, C] += conj(Δf[A, B]) * x2[C, D] * x3[D, B]
         fnΔx2(Δf, x1, x2, x3, x4, x5) = @tensoropt !C _[C, D] := conj(conj(x1[A, C]) * conj(Δf[A, B]) * x3[D, B])
+        fnΔx2add!!(x, Δf, x1, x2, x3, x4, x5) = @tensoropt !C x[C, D] += conj(conj(x1[A, C]) * conj(Δf[A, B]) * x3[D, B])
         fnΔx3(Δf, x1, x2, x3, x4, x5) = @tensoropt !C _[D, B] := conj(conj(x1[A, C]) * x2[C, D] * conj(Δf[A, B]))
+        fnΔx3add!!(x, Δf, x1, x2, x3, x4, x5) = @tensoropt !C x[D, B] += conj(conj(x1[A, C]) * x2[C, D] * conj(Δf[A, B]))
         fnΔx4(Δf, x1, x2, x3, x4, x5) = first(@tensoropt !C _[] := conj(conj(Δf[A, B]) * x5[A, B]))
         fnΔx5(Δf, x1, x2, x3, x4, x5) = @tensoropt !C _[A, B] := conj(x4 * conj(Δf[A, B]))
-        Δx1 = @thunk Px1(fnΔx1(Δf, x1, x2, x3, x4, x5))
-        Δx2 = @thunk Px2(fnΔx2(Δf, x1, x2, x3, x4, x5))
-        Δx3 = @thunk Px3(fnΔx3(Δf, x1, x2, x3, x4, x5))
-        Δx4 = @thunk Px4(fnΔx4(Δf, x1, x2, x3, x4, x5))
-        Δx5 = @thunk Px5(fnΔx5(Δf, x1, x2, x3, x4, x5))
+        fnΔx5add!!(x, Δf, x1, x2, x3, x4, x5) = @tensoropt !C x[A, B] += conj(x4 * conj(Δf[A, B]))
+        Δx1 = InplaceableThunk(
+            Thunk(() -> Px1(fnΔx1(Δf, x1, x2, x3, x4, x5))),
+            x -> fnΔx1add!!(x, Δf, x1, x2, x3, x4, x5)
+        )
+        Δx2 = InplaceableThunk(
+            Thunk(() -> Px2(fnΔx2(Δf, x1, x2, x3, x4, x5))),
+            x -> fnΔx2add!!(x, Δf, x1, x2, x3, x4, x5)
+        )
+        Δx3 = InplaceableThunk(
+            Thunk(() -> Px3(fnΔx3(Δf, x1, x2, x3, x4, x5))),
+            x -> fnΔx3add!!(x, Δf, x1, x2, x3, x4, x5)
+        )
+        Δx4 = Thunk(() -> fnΔx4(Δf, x1, x2, x3, x4, x5))
+        Δx5 = InplaceableThunk(
+            Thunk(() -> Px5(fnΔx5(Δf, x1, x2, x3, x4, x5))),
+            x -> fnΔx5add!!(x, Δf, x1, x2, x3, x4, x5)
+        )
         return (NoTangent(), Δx1, Δx2, Δx3, Δx4, Δx5)
     end
     return f, _foo_1_pullback
