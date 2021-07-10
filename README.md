@@ -70,32 +70,18 @@ end
 
 function rrule(::typeof(_foo_1), x1, x2, x3, x4, x5)
     f = _foo_1(x1, x2, x3, x4, x5)
+    Px1, Px2, Px3, Px4, Px5 = ProjectTo(x1), ProjectTo(x2), ProjectTo(x3), ProjectTo(x4), ProjectTo(x5)
     function _foo_1_pullback(Δf)
-        Δx1 = InplaceableThunk(
-            Thunk(
-                () -> @tensoropt !C Δx1[A, C] := conj(Δf[A, B]) * x2[C, D] * x3[D, B]
-            ),
-            Δx1 -> @tensoropt !C Δx1[A, C] += conj(Δf[A, B]) * x2[C, D] * x3[D, B]
-        )
-        Δx2 = InplaceableThunk(
-            Thunk(
-                () -> @tensoropt !C Δx2[C, D] := conj(conj(x1[A, C]) * conj(Δf[A, B]) * x3[D, B])
-            ),
-            Δx2 -> @tensoropt !C Δx2[C, D] += conj(conj(x1[A, C]) * conj(Δf[A, B]) * x3[D, B])
-        )
-        Δx3 = InplaceableThunk(
-            Thunk(
-                () -> @tensoropt !C Δx3[D, B] := conj(conj(x1[A, C]) * x2[C, D] * conj(Δf[A, B]))
-            ),
-            Δx3 -> @tensoropt !C Δx3[D, B] += conj(conj(x1[A, C]) * x2[C, D] * conj(Δf[A, B]))
-        )
-        Δx4 = Thunk(() -> first(@tensoropt !C Δx4[] := conj(conj(Δf[A, B]) * x5[A, B])))
-        Δx5 = InplaceableThunk(
-            Thunk(
-                () -> @tensoropt !C Δx5[A, B] := conj(x4 * conj(Δf[A, B]))
-            ),
-            Δx5 -> @tensoropt !C Δx5[A, B] += conj(x4 * conj(Δf[A, B]))
-        )
+        fnΔx1(Δf, x1, x2, x3, x4, x5) = @tensoropt !C _[A, C] := conj(Δf[A, B]) * x2[C, D] * x3[D, B]
+        fnΔx2(Δf, x1, x2, x3, x4, x5) = @tensoropt !C _[C, D] := conj(conj(x1[A, C]) * conj(Δf[A, B]) * x3[D, B])
+        fnΔx3(Δf, x1, x2, x3, x4, x5) = @tensoropt !C _[D, B] := conj(conj(x1[A, C]) * x2[C, D] * conj(Δf[A, B]))
+        fnΔx4(Δf, x1, x2, x3, x4, x5) = first(@tensoropt !C _[] := conj(conj(Δf[A, B]) * x5[A, B]))
+        fnΔx5(Δf, x1, x2, x3, x4, x5) = @tensoropt !C _[A, B] := conj(x4 * conj(Δf[A, B]))
+        Δx1 = @thunk Px1(fnΔx1(Δf, x1, x2, x3, x4, x5))
+        Δx2 = @thunk Px2(fnΔx2(Δf, x1, x2, x3, x4, x5))
+        Δx3 = @thunk Px3(fnΔx3(Δf, x1, x2, x3, x4, x5))
+        Δx4 = @thunk Px4(fnΔx4(Δf, x1, x2, x3, x4, x5))
+        Δx5 = @thunk Px5(fnΔx5(Δf, x1, x2, x3, x4, x5))
         return (NoTangent(), Δx1, Δx2, Δx3, Δx4, Δx5)
     end
     return f, _foo_1_pullback
@@ -124,9 +110,9 @@ in the expression. Please use `:=`, `+=` and `-=` instead.
 
 - [x] support `frule`
 - [ ] support `@tensor` block (`@tensor begin ... end`)
-- [x] support higher order differentiation (by applying `@∇` to `rrule` and `frule` recursively)
-    - [ ] add more test (higher order differentiations are not well tested
+- [ ] support higher order differentiation (by applying `@∇` to `rrule` and `frule` recursively)
+  - [ ] add more test (higher order differentiations are not well tested
     since `Zygote.jl` has poor support of higher order differentiation...😞)
-    - [ ] better support of `InplaceableThunk` (in this version, when we use `@∇ i foo(...) = ...`
+  - [ ] better support of `InplaceableThunk` (in this version, when we use `@∇ i foo(...) = ...`
     where `i > 1`, `InplaceableThunk` will be disabled)
 - [x] use `@thunk` ?

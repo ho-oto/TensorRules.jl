@@ -1,6 +1,4 @@
-function _nabla(ex::Expr, i::Integer; mod)
-    @assert i ≥ 1
-
+function _nabla(ex::Expr; mod)
     def = splitdef(ex)
     symfuncs, exfuncs, exrules = Symbol[], Expr[], Expr[]
 
@@ -47,16 +45,11 @@ function _nabla(ex::Expr, i::Integer; mod)
 
         exfunc = genfunc(genargs...)
         exfrule = genfrule(genargs...)
-        exrrule = genrrule(genargs..., isconjs, indsall; useinplace=(i == 1))
+        exrrule = genrrule(genargs..., isconjs, indsall)
 
         @eval mod $(macroexpand(TensorOperations, exfunc))
-        if i > 1
-            @eval mod $(:(@∇ $(i - 1) $exfrule))
-            @eval mod $(:(@∇ $(i - 1) $exrrule))
-        else
-            @eval mod $(macroexpand(TensorOperations, exfrule))
-            @eval mod $(macroexpand(TensorOperations, exrrule))
-        end
+        @eval mod $(macroexpand(TensorOperations, exfrule))
+        @eval mod $(macroexpand(TensorOperations, exrrule))
 
         if which == :assign
             return :($lhs = $(Core.eval(mod, symfunc))($(argsorig...)))
@@ -71,16 +64,11 @@ function _nabla(ex::Expr, i::Integer; mod)
 end
 
 macro ∇(ex)
-    ex, _ = _nabla(ex, defaultdifforder[]; mod=@__MODULE__)
-    return ex
-end
-
-macro ∇(i::Integer, ex)
-    ex, _ = _nabla(ex, i; mod=@__MODULE__)
+    ex, _ = _nabla(ex; mod=@__MODULE__)
     return ex
 end
 
 macro fn∇(i, ex)
-    _, fn = _nabla(ex, defaultdifforder[]; mod=@__MODULE__)
+    _, fn = _nabla(ex; mod=@__MODULE__)
     return fn[i]
 end

@@ -56,20 +56,21 @@ function genrrule(
     rhs::Expr,
     opt::Ref{Expr},
     isconjs::Vector{Bool},
-    indsall::Vector{Union{Symbol,Expr}};
-    useinplace::Bool,
+    indsall::Vector{Union{Symbol,Expr}},
 )
     indsall = [lhsind; indsall]
 
-    @gensym Δlhssym
-    Δlhs = if isempty(lhsind)
-        :(first($Δlhssym))
-    else
-        :($Δlhssym[$(lhsind...)])
+    @gensym Δlhssym Δlhssymproj
+    Δlhs = isempty(lhsind) ? :(first($Δlhssym)) : :($Δlhssym[$(lhsind...)])
+    projargsyms, projargdefs = Symbol[], Expr[]
+    for arg in args
+        @gensym projarg
+        push!(projargsyms, projarg)
+        push!(projargdefs, :(ProjectTo($arg)))
     end
 
-    ∂args, ∂exargs = Symbol[], Expr[]
-    for (arg, isconj) in zip(args, isconjs)
+    ∂args, ∂exargs, ∂exdefs = Symbol[], Expr[], Expr[]
+    for (arg, isconj, projsym) in zip(args, isconjs, projargsyms)
         @gensym ∂arg
         rhsarg = make_scalar_first(make_only_product(rhs, arg))
 
@@ -114,34 +115,52 @@ function genrrule(
 
         ∂exrhs = isconj ? ∂exrhs : :(conj($∂exrhs))
 
-        ∂exval = if istensor
+        @gensym ∂fn
+        ∂exdef = if istensor
             if isassigned(opt)
-                :(@tensoropt $(opt[]) $∂arg[$(indtr...)] := $∂exrhs)
+                :(function $∂fn($Δlhssym, $(args...))
+                        @tensoropt $(opt[]) _[$(indtr...)] := $∂exrhs
+                    end)
             else
-                :(@tensor $∂arg[$(indtr...)] := $∂exrhs)
+                :($∂fn($Δlhssym, $(args...)) = @tensor _[$(indtr...)] := $∂exrhs)
             end
         else
             if isassigned(opt)
-                :(first(@tensoropt $(opt[]) $∂arg[] := $∂exrhs))
+                :(function $∂fn($Δlhssym, $(args...))
+                        return first(@tensoropt $(opt[]) _[] := $∂exrhs)
+                    end)
             else
-                :(first(@tensor $∂arg[] := $∂exrhs))
+                :($∂fn($Δlhssym, $(args...)) = first(@tensor _[] := $∂exrhs))
             end
         end
-
-        ∂exadd! = if istensor
-            if isassigned(opt)
-                :($∂arg -> @tensoropt $(opt[]) $∂arg[$(indtr...)] += $∂exrhs)
+        push!(∂exdefs, ∂exdef)
+        if istensor
+            @gensym ∂fnadd inplaced
+            ∂exadd! = if isassigned(opt)
+                :(
+                    function $∂fnadd($inplaced, $Δlhssym, $(args...))
+                        @tensoropt $(opt[]) $inplaced[$(indtr...)] += $∂exrhs
+                    end
+                )
             else
-                :($∂arg -> @tensor $∂arg[$(indtr...)] += $∂exrhs)
+                :(
+                    function $∂fnadd($inplaced, $Δlhssym, $(args...))
+                        @tensor $inplaced[$(indtr...)] += $∂exrhs
+                    end
+                )
             end
-        else
-            nothing
+            push!(∂exdefs, ∂exadd!)
         end
 
-        ∂exarg = if istensor && useinplace
-            :($∂arg = InplaceableThunk(Thunk(() -> $∂exval), $∂exadd!))
+        ∂exarg = if istensor
+            :(
+                $∂arg = InplaceableThunk(
+                    Thunk(() -> $projsym($∂fn($Δlhssym, $(args...)))),
+                    $inplaced -> $∂fnadd($inplaced, $Δlhssym, $(args...)),
+                )
+            )
         else
-            :($∂arg = Thunk(() -> $∂exval))
+            :($∂arg = Thunk(() -> $∂fn($Δlhssym, $(args...))))
         end
 
         push!(∂args, ∂arg)
@@ -151,14 +170,19 @@ function genrrule(
     @gensym valforw funcback
     backbody = Expr(
         :block,
-        :($Δlhssym = Array($Δlhssym)),
+        :($Δlhssym = $Δlhssymproj($Δlhssym)),
+        ∂exdefs...,
         ∂exargs...,
         :(return (NoTangent(), $(∂args...))),
     )
 
+    projargsym = Expr(:tuple, projargsyms...)
+    projargdef = Expr(:tuple, projargdefs...)
     return quote
         function ChainRulesCore.rrule(::typeof($funcname), $(args...))
             $valforw = $(funcname)($(args...))
+            $Δlhssymproj = ProjectTo($valforw)
+            $projargsym = $projargdef
             $(funcback)($Δlhssym) = $backbody
             return ($valforw, $funcback)
         end

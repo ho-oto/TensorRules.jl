@@ -9,7 +9,7 @@
             c = randn(T, 5, 4)
             d = randn(T, 4, 4)
 
-            test_rrule(_esum, b, c, d; check_inferred=false)
+            test_rrule(_esum, b, c, d)
             test_frule(_esum, b, c, d)
         end
     end
@@ -30,9 +30,9 @@
             c = randn(T, 5, 4)
             d = randn(T, 4, 4)
 
-            test_rrule(_opt1, b, c, d; check_inferred=false)
-            test_rrule(_opt2, b, c, d; check_inferred=false)
-            test_rrule(_opt3, b, c, d; check_inferred=false)
+            test_rrule(_opt1, b, c, d)
+            test_rrule(_opt2, b, c, d)
+            test_rrule(_opt3, b, c, d)
 
             test_frule(_opt1, b, c, d)
             test_frule(_opt2, b, c, d)
@@ -50,7 +50,7 @@
             c = randn(T, 5, 4)
             α = randn(T)
 
-            test_rrule(_scar, α, b, c; check_inferred=false)
+            test_rrule(_scar, α, b, c)
             test_frule(_scar, α, b, c)
         end
     end
@@ -70,7 +70,7 @@
             e = randn(T, 5, 4)
             f = randn(T, 5, 4)
 
-            test_rrule(_add, α, b, c, β, d, e, f; check_inferred=false)
+            test_rrule(_add, α, b, c, β, d, e, f)
             test_frule(_add, α, b, c, β, d, e, f)
         end
     end
@@ -87,8 +87,8 @@
             b = randn(T, 3, 2, 3, 3, 2)
             c = randn(T, 3, 3, 3, 2)
 
-            test_rrule(_tr1, b, c; check_inferred=false)
-            test_rrule(_tr2, b, c; check_inferred=false)
+            test_rrule(_tr1, b, c)
+            test_rrule(_tr2, b, c)
 
             test_frule(_tr1, b, c)
             test_frule(_tr2, b, c)
@@ -105,7 +105,7 @@
             c = randn(T, 2, 4)
             d = randn(T, 4, 3)
 
-            test_rrule(_scal, b, c, d; check_inferred=false)
+            test_rrule(_scal, b, c, d)
             test_frule(_scal, b, c, d)
         end
     end
@@ -130,9 +130,9 @@
             α = randn(T)
             β = randn(T)
 
-            test_rrule(_co1, b, c, d; check_inferred=false)
-            test_rrule(_co2, b, c, d; check_inferred=false)
-            test_rrule(_co3, b, c, d; check_inferred=false)
+            test_rrule(_co1, b, c, d)
+            test_rrule(_co2, b, c, d)
+            test_rrule(_co3, b, c, d)
 
             test_frule(_co1, b, c, d)
             test_frule(_co2, b, c, d)
@@ -154,7 +154,7 @@
             e = randn(T, 5, 4)
             f = randn(T, 5, 4)
 
-            test_rrule(_co4, α, b, c, β, d, e, f; check_inferred=false)
+            test_rrule(_co4, α, b, c, β, d, e, f)
             test_frule(_co4, α, b, c, β, d, e, f)
         end
     end
@@ -177,8 +177,8 @@
         H = randn(T, 2, 2, 2, 2)
         r = randn(T, 3, 2, 3)
 
-        test_rrule(_tn1, x, a1, a2, H; check_inferred=false)
-        test_rrule(_tn2, a1, a2, x, H; check_inferred=false)
+        test_rrule(_tn1, x, a1, a2, H)
+        test_rrule(_tn2, a1, a2, x, H)
 
         test_frule(_tn1, x, a1, a2, H)
         test_frule(_tn2, a1, a2, x, H)
@@ -211,8 +211,8 @@
         H = randn(T, 2, 2, 2, 2)
         r = randn(T, 3, 3)
 
-        test_rrule(_tn3, λ, b1, b2, a1, a2, H; check_inferred=false)
-        test_rrule(_tn4, a1, a2, x, b1, b2, H; check_inferred=false)
+        test_rrule(_tn3, λ, b1, b2, a1, a2, H)
+        test_rrule(_tn4, a1, a2, x, b1, b2, H)
 
         test_frule(_tn3, λ, b1, b2, a1, a2, H)
         test_frule(_tn4, a1, a2, x, b1, b2, H)
