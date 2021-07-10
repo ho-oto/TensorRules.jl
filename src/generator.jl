@@ -60,27 +60,26 @@ function genrrule(
 )
     indsall = [lhsind; indsall]
 
-    @gensym Δlhssym Δlhssymproj
-    Δlhs = isempty(lhsind) ? :(first($Δlhssym)) : :($Δlhssym[$(lhsind...)])
-    projargsyms, projargdefs = Symbol[], Expr[]
-    for arg in args
-        @gensym projarg
-        push!(projargsyms, projarg)
-        push!(projargdefs, :(ProjectTo($arg)))
-    end
+    @gensym Δlhs
+    Δlhsex = isempty(lhsind) ? :(first($Δlhs)) : :($Δlhs[$(lhsind...)])
 
-    ∂args, ∂exargs, ∂exdefs = Symbol[], Expr[], Expr[]
-    for (arg, isconj, projsym) in zip(args, isconjs, projargsyms)
-        @gensym ∂arg
+    projargs, projargexs = Symbol[], Expr[]
+    ∂args, ∂argexs, ∂argdefs = Symbol[], Expr[], Expr[]
+    for (arg, isconj) in zip(args, isconjs)
+        @gensym ∂arg projarg
+        push!(∂args, ∂arg)
+        push!(projargs, projarg)
+        push!(projargexs, :(ProjectTo($arg)))
+
         rhsarg = make_scalar_first(make_only_product(rhs, arg))
 
         ind = Ref{Vector{Any}}()
         ∂exrhs = MacroTools.prewalk(rhsarg) do x  # assume to match only once
             if @capture(x, $arg[_ind__])
                 ind[] = _ind
-                isconj ? Δlhs : :(conj($Δlhs))
+                isconj ? Δlhsex : :(conj($Δlhsex))
             elseif @capture(x, $arg)
-                isconj ? Δlhs : :(conj($Δlhs))
+                isconj ? Δlhsex : :(conj($Δlhsex))
             else
                 x
             end
@@ -118,73 +117,66 @@ function genrrule(
         @gensym ∂fn
         ∂exdef = if istensor
             if isassigned(opt)
-                :(function $∂fn($Δlhssym, $(args...))
-                        @tensoropt $(opt[]) _[$(indtr...)] := $∂exrhs
-                    end)
+                :(function $∂fn($Δlhs, $(args...))
+                    @tensoropt $(opt[]) _[$(indtr...)] := $∂exrhs
+                end)
             else
-                :($∂fn($Δlhssym, $(args...)) = @tensor _[$(indtr...)] := $∂exrhs)
+                :($∂fn($Δlhs, $(args...)) = @tensor _[$(indtr...)] := $∂exrhs)
             end
         else
             if isassigned(opt)
-                :(function $∂fn($Δlhssym, $(args...))
-                        return first(@tensoropt $(opt[]) _[] := $∂exrhs)
-                    end)
+                :(function $∂fn($Δlhs, $(args...))
+                    return first(@tensoropt $(opt[]) _[] := $∂exrhs)
+                end)
             else
-                :($∂fn($Δlhssym, $(args...)) = first(@tensor _[] := $∂exrhs))
+                :($∂fn($Δlhs, $(args...)) = first(@tensor _[] := $∂exrhs))
             end
         end
-        push!(∂exdefs, ∂exdef)
+        push!(∂argdefs, ∂exdef)
         if istensor
-            @gensym ∂fnadd inplaced
+            @gensym ∂fnadd!! inplaced
             ∂exadd! = if isassigned(opt)
-                :(
-                    function $∂fnadd($inplaced, $Δlhssym, $(args...))
-                        @tensoropt $(opt[]) $inplaced[$(indtr...)] += $∂exrhs
-                    end
-                )
+                :(function $∂fnadd!!($inplaced, $Δlhs, $(args...))
+                    @tensoropt $(opt[]) $inplaced[$(indtr...)] += $∂exrhs
+                end)
             else
-                :(
-                    function $∂fnadd($inplaced, $Δlhssym, $(args...))
-                        @tensor $inplaced[$(indtr...)] += $∂exrhs
-                    end
-                )
+                :(function $∂fnadd!!($inplaced, $Δlhs, $(args...))
+                    @tensor $inplaced[$(indtr...)] += $∂exrhs
+                end)
             end
-            push!(∂exdefs, ∂exadd!)
+            push!(∂argdefs, ∂exadd!)
         end
 
         ∂exarg = if istensor
             :(
                 $∂arg = InplaceableThunk(
-                    Thunk(() -> $projsym($∂fn($Δlhssym, $(args...)))),
-                    $inplaced -> $∂fnadd($inplaced, $Δlhssym, $(args...)),
+                    Thunk(() -> $projarg($∂fn($Δlhs, $(args...)))),
+                    $inplaced -> $∂fnadd!!($inplaced, $Δlhs, $(args...)),
                 )
             )
         else
-            :($∂arg = Thunk(() -> $∂fn($Δlhssym, $(args...))))
+            :($∂arg = Thunk(() -> $∂fn($Δlhs, $(args...))))
         end
 
-        push!(∂args, ∂arg)
-        push!(∂exargs, ∂exarg)
+        push!(∂argexs, ∂exarg)
     end
 
-    @gensym valforw funcback
-    backbody = Expr(
-        :block,
-        :($Δlhssym = $Δlhssymproj($Δlhssym)),
-        ∂exdefs...,
-        ∂exargs...,
-        :(return (NoTangent(), $(∂args...))),
-    )
-
-    projargsym = Expr(:tuple, projargsyms...)
-    projargdef = Expr(:tuple, projargdefs...)
+    @gensym lhs pullback projΔlhs
     return quote
         function ChainRulesCore.rrule(::typeof($funcname), $(args...))
-            $valforw = $(funcname)($(args...))
-            $Δlhssymproj = ProjectTo($valforw)
-            $projargsym = $projargdef
-            $(funcback)($Δlhssym) = $backbody
-            return ($valforw, $funcback)
+            $lhs = $(funcname)($(args...))
+            $projΔlhs = ChainRulesCore.ProjectTo($lhs)
+            $(Expr(:tuple, projargs...)) = $(Expr(:tuple, projargexs...))
+            function $(pullback)($Δlhs)
+                return $(Expr(
+                    :block,
+                    :($Δlhs = $projΔlhs($Δlhs)),
+                    ∂argdefs...,
+                    ∂argexs...,
+                    :(return (ChainRulesCore.NoTangent(), $(∂args...))),
+                ))
+            end
+            return ($lhs, $pullback)
         end
     end
 end
