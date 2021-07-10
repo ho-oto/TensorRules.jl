@@ -4,7 +4,7 @@
     function foo_(a, b, c, d, e, f)
         @tensoropt !C x[A, B] :=
             k * conj(a[A, C]) * (-sin.(b)[C, D] * c.d[D, B] - c.d[C, B])
-        @tensor x[A, B] -= d * conj(e[1])[A, B'', B', B', B'', B]
+        @tensor x[A, B] -= d * conj(e[1])[A, (B')', B', B', (B')', B]
         x = x + f * k
         @tensor x[A, B] += (@tensor _[A, C] := a[A, B] * a[B, C])[A, C] * (a * a)[C, B]
         return x
@@ -13,7 +13,7 @@
     @∇ function foo(a, b, c, d, e, f)
         @tensoropt !C x[a, b] :=
             k * conj(a[a, c]) * (-sin.(b)[c, d] * c.d[d, b] - c.d[c, b])
-        @tensor x[A, B] -= d * conj(e[1])[A, B'', B', B', B'', B]
+        @tensor x[A, B] -= d * conj(e[1])[A, (B')', B', B', (B')', B]
         x = x + f * k
         @tensor x[A, B] += (@tensor _[A, C] := a[A, B] * a[B, C])[A, C] * (a * a)[C, B]
         return x

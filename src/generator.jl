@@ -96,9 +96,9 @@ function genrrule(
                 if i ∉ indtr
                     push!(indtr, i)
                 else
-                    j = :($i')
+                    j = Expr(Symbol("'"), i)
                     while j ∈ [indsall; indtr]
-                        j = :($j')
+                        j = Expr(Symbol("'"), j)
                     end
                     push!(indtr, j)
                     push!(
@@ -155,7 +155,6 @@ function genrrule(
         ∂exargs...,
         :(return (NoTangent(), $(∂args...))),
     )
-    zerobody = :((NoTangent(), $(fill(ZeroTangent(), length(∂args))...)))
 
     return quote
         function ChainRulesCore.rrule(::typeof($funcname), $(args...))

@@ -1,6 +1,6 @@
 @testset "RHS parse" begin
     ex = quote
-        (a[1:end, :][1, 2][a, b'] + sin(cos(B))[b', a'']) * (C * D + E)[a'', a] * 3 * 2 + α * a[a, a] * K[1, 2, 3][a, a] -
+        (a[1:end, :][1, 2][a, b'] + sin(cos(B))[b', (a')']) * (C * D + E)[(a')', a] * 3 * 2 + α * a[a, a] * K[1, 2, 3][a, a] -
         (((L[a, b] * P.P[b, c]) * (M[c, d] * N[d, e]) * Z[e, f]) * D[f, a]) * π
     end
     @test rhs_to_args(ex)[2] == [
