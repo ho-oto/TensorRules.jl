@@ -150,8 +150,8 @@ function genrrule(
         ∂exarg = if istensor
             :(
                 $∂arg = InplaceableThunk(
-                    Thunk(() -> $projarg($∂fn($Δlhs, $(args...)))),
                     $inplaced -> $∂fnadd!!($inplaced, $Δlhs, $(args...)),
+                    Thunk(() -> $projarg($∂fn($Δlhs, $(args...)))),
                 )
             )
         else
