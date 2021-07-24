@@ -10,7 +10,7 @@ MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 TensorOperations = "6aa20fa7-93e2-5fca-9bc0-fbd0db3c71a2"
 
 [compat]
-ChainRulesCore = "0.10.12"
+ChainRulesCore = "0.10.12, 1"
 MacroTools = "0.5"
 TensorOperations = "3.0"
 julia = "1.6"
