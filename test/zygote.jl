@@ -19,14 +19,13 @@
         return x
     end
 
-    rng = MersenneTwister(1234321)
     T = ComplexF64
-    a = randn(rng, T, 3, 3)
-    b = randn(rng, T, 3, 3)
-    c = (d=randn(rng, T, 3, 3),)
-    d = randn(rng, T)
-    e = [randn(rng, T, 3, 2, 1, 1, 2, 3) for i in 1:2]
-    f = randn(rng, T, 3, 3)
+    a = randn(T, 3, 3)
+    b = randn(T, 3, 3)
+    c = (d=randn(T, 3, 3),)
+    d = randn(T)
+    e = [randn(T, 3, 2, 1, 1, 2, 3) for i in 1:2]
+    f = randn(T, 3, 3)
 
     @test foo(a, b, c, d, e, f) ≈ foo_(a, b, c, d, e, f)
 
