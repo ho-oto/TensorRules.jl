@@ -45,7 +45,7 @@ function genfrule(
             ($(ȧrgs...),) = ChainRulesCore.unthunk.(($(ȧrgs...),))
             $val = $(funcname)($(args...))
             $pushbody
-            return ($val, $v̇al)
+            return ($val, $v̇al::typeof($val))
         end
     end
 end
