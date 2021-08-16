@@ -30,7 +30,7 @@ function _nabla(ex::Expr; mod)
         elseif @capture(x, @tensor _[__] = _) ||
                @capture(x, @tensoropt _[__] = _) ||
                @capture(x, @tensoropt _ _[__] = _)
-            error("use assignment with `:=` instead of inplace operation with `=` for Zygote")
+            error("use assignment with `:=` instead of inplace operation with `=`")
         else
             return x
         end
