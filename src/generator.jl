@@ -42,6 +42,7 @@ function genfrule(
 
     return quote
         function ChainRulesCore.frule((_, $(ȧrgs...)), ::typeof($funcname), $(args...))
+            ($(ȧrgs...),) = ChainRulesCore.unthunk.(($(ȧrgs...),))
             $val = $(funcname)($(args...))
             $pushbody
             return ($val, $v̇al)
@@ -170,7 +171,7 @@ function genrrule(
             function $(pullback)($Δlhs)
                 return $(Expr(
                     :block,
-                    :($Δlhs = $projΔlhs($Δlhs)),
+                    :($Δlhs = ChainRulesCore.unthunk($projΔlhs($Δlhs))),
                     ∂argdefs...,
                     ∂argexs...,
                     :(return (ChainRulesCore.NoTangent(), $(∂args...))),
