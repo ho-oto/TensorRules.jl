@@ -162,16 +162,15 @@ function genrrule(
         push!(∂argexs, ∂exarg)
     end
 
-    @gensym lhs pullback projΔlhs
+    @gensym lhs pullback
     return quote
         function ChainRulesCore.rrule(::typeof($funcname), $(args...))
             $lhs = $(funcname)($(args...))
-            $projΔlhs = ChainRulesCore.ProjectTo($lhs)
             ($(projargs...),) = ($(projargexs...),)
             function $(pullback)($Δlhs)
                 return $(Expr(
                     :block,
-                    :($Δlhs = ChainRulesCore.unthunk($projΔlhs($Δlhs))),
+                    :($Δlhs = Array(ChainRulesCore.unthunk($Δlhs))),
                     ∂argdefs...,
                     ∂argexs...,
                     :(return (ChainRulesCore.NoTangent(), $(∂args...))),
