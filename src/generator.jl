@@ -167,7 +167,7 @@ function genrrule(
         function ChainRulesCore.rrule(::typeof($funcname), $(args...))
             $lhs = $(funcname)($(args...))
             $projΔlhs = ChainRulesCore.ProjectTo($lhs)
-            $(Expr(:tuple, projargs...)) = $(Expr(:tuple, projargexs...))
+            ($(projargs...),) = ($(projargexs...),)
             function $(pullback)($Δlhs)
                 return $(Expr(
                     :block,
